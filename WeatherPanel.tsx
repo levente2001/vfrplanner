@@ -1,5 +1,19 @@
-import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { Loader2, MapPin, Navigation, RefreshCw, Search } from "lucide-react";
+import {
+  type FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import {
+  ExternalLink,
+  FileText,
+  Loader2,
+  MapPin,
+  Navigation,
+  RefreshCw,
+  Search,
+} from "lucide-react";
 import { Card, CardContent } from "@/ui/card";
 
 const DEFAULT_ICAO = "LHDC";
@@ -8,14 +22,13 @@ const REFRESH_MS = 5 * 60 * 1000;
 // Browser requests go to our same-origin proxy. The proxy fetches the official
 // NOAA/NWS Aviation Weather Center METAR API server-side.
 const METAR_API_URL = "/api/metar";
+const LLSIGWX_PDF_PROXY_URL = "/api/weather/llsigwx.pdf";
 
 const QUICK_ICAOS: { code: string; label: string }[] = [
   { code: "LHDC", label: "Debrecen" },
   { code: "LHBP", label: "Budapest" },
-  { code: "LHSN", label: "Szeged" },
-  { code: "EGLL", label: "London" },
-  { code: "EDDF", label: "Frankfurt" },
-  { code: "KJFK", label: "New York" },
+  { code: "LHSN", label: "Szolnok" },
+  { code: "LHNY", label: "Nyíregyháza" },
 ];
 
 type RunwayOption = {
@@ -108,7 +121,8 @@ function headingFromRunwayIdent(ident: string | undefined) {
 }
 
 function parseHeading(value: string | undefined, ident: string | undefined) {
-  const numeric = value === undefined || value === "" ? Number.NaN : Number(value);
+  const numeric =
+    value === undefined || value === "" ? Number.NaN : Number(value);
   if (Number.isFinite(numeric)) return ((numeric % 360) + 360) % 360;
   return headingFromRunwayIdent(ident);
 }
@@ -132,7 +146,9 @@ function parseAirportRunways(data: AirportDbRecord): RunwayOption[] {
     }
   }
 
-  return options.sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
+  return options.sort((a, b) =>
+    a.id.localeCompare(b.id, undefined, { numeric: true }),
+  );
 }
 
 function signedAngleDifference(a: number, b: number) {
@@ -163,7 +179,6 @@ async function fetchAirportRecord(targetIcao: string) {
 
   throw new Error(`Airport data HTTP ${lastStatus ?? "unknown"}`);
 }
-
 
 function parseSignedTemperature(value: string) {
   return value.startsWith("M") ? -Number(value.slice(1)) : Number(value);
@@ -210,7 +225,8 @@ function parseMetar(rawInput: string): ParsedMetar {
 
   const windMatch = raw.match(/\b(VRB|\d{3})(\d{2,3})(?:G(\d{2,3}))?KT\b/);
   const windVariable = windMatch?.[1] === "VRB";
-  const windDirection = windMatch && !windVariable ? Number(windMatch[1]) : null;
+  const windDirection =
+    windMatch && !windVariable ? Number(windMatch[1]) : null;
   const windSpeed = windMatch ? Number(windMatch[2]) : null;
   const windGust = windMatch?.[3] ? Number(windMatch[3]) : null;
 
@@ -221,15 +237,16 @@ function parseMetar(rawInput: string): ParsedMetar {
   const cavok = /\bCAVOK\b/.test(raw);
   const visibilityKm = parseVisibilityKm(tokens, raw);
 
-  const cloudGroups = [...raw.matchAll(/\b(FEW|SCT|BKN|OVC|VV)(\d{3}|\/{3})\b/g)].map(
-    (match) => ({
-      amount: match[1],
-      height: match[2] === "///" ? null : Number(match[2]) * 100,
-    }),
-  );
+  const cloudGroups = [
+    ...raw.matchAll(/\b(FEW|SCT|BKN|OVC|VV)(\d{3}|\/{3})\b/g),
+  ].map((match) => ({
+    amount: match[1],
+    height: match[2] === "///" ? null : Number(match[2]) * 100,
+  }));
 
   const ceilingGroups = cloudGroups.filter(
-    (group) => ["BKN", "OVC", "VV"].includes(group.amount) && group.height !== null,
+    (group) =>
+      ["BKN", "OVC", "VV"].includes(group.amount) && group.height !== null,
   );
   const ceilingFt = ceilingGroups.length
     ? Math.min(...ceilingGroups.map((group) => group.height as number))
@@ -237,8 +254,10 @@ function parseMetar(rawInput: string): ParsedMetar {
 
   let cloudLabel = "No ceiling reported";
   if (cavok) cloudLabel = "CAVOK";
-  else if (/\b(NCD|NSC|SKC|CLR)\b/.test(raw)) cloudLabel = "No significant cloud";
-  else if (ceilingFt !== null) cloudLabel = `Ceiling ${ceilingFt.toLocaleString()} ft`;
+  else if (/\b(NCD|NSC|SKC|CLR)\b/.test(raw))
+    cloudLabel = "No significant cloud";
+  else if (ceilingFt !== null)
+    cloudLabel = `Ceiling ${ceilingFt.toLocaleString()} ft`;
   else if (cloudGroups.length) {
     cloudLabel = cloudGroups
       .map((group) =>
@@ -257,13 +276,17 @@ function parseMetar(rawInput: string): ParsedMetar {
   const qnhHpa = qnhMatch ? Number(qnhMatch[1]) : null;
 
   let category: ParsedMetar["category"] = "UNKNOWN";
-  const effectiveCeiling = cavok ? Number.POSITIVE_INFINITY : ceilingFt ?? Number.POSITIVE_INFINITY;
+  const effectiveCeiling = cavok
+    ? Number.POSITIVE_INFINITY
+    : (ceilingFt ?? Number.POSITIVE_INFINITY);
   const effectiveVisibility = visibilityKm ?? Number.POSITIVE_INFINITY;
 
   if (visibilityKm !== null || ceilingFt !== null || cavok) {
     if (effectiveCeiling < 500 || effectiveVisibility < 1.6) category = "LIFR";
-    else if (effectiveCeiling < 1000 || effectiveVisibility < 5) category = "IFR";
-    else if (effectiveCeiling <= 3000 || effectiveVisibility <= 8) category = "MVFR";
+    else if (effectiveCeiling < 1000 || effectiveVisibility < 5)
+      category = "IFR";
+    else if (effectiveCeiling <= 3000 || effectiveVisibility <= 8)
+      category = "MVFR";
     else category = "VFR";
   }
 
@@ -326,7 +349,8 @@ function parseAwcMetar(observation: AwcMetar): ParsedMetar {
       : rawParsed.windGust;
 
   const cavok = rawParsed.cavok;
-  const visibilityKm = parseAwcVisibilityKm(observation.visib, raw) ?? rawParsed.visibilityKm;
+  const visibilityKm =
+    parseAwcVisibilityKm(observation.visib, raw) ?? rawParsed.visibilityKm;
 
   const ceilingLayers = (observation.clouds ?? []).filter(
     (layer) =>
@@ -347,8 +371,10 @@ function parseAwcMetar(observation: AwcMetar): ParsedMetar {
     cloudLabel = (observation.clouds ?? [])
       .map((layer) =>
         typeof layer.base === "number"
-          ? `${layer.cover ?? ""} ${Math.round(layer.base / 100).toString().padStart(3, "0")}`.trim()
-          : layer.cover ?? "",
+          ? `${layer.cover ?? ""} ${Math.round(layer.base / 100)
+              .toString()
+              .padStart(3, "0")}`.trim()
+          : (layer.cover ?? ""),
       )
       .filter(Boolean)
       .join(" · ");
@@ -373,11 +399,18 @@ function parseAwcMetar(observation: AwcMetar): ParsedMetar {
           : rawParsed.qnhHpa
       : rawParsed.qnhHpa;
 
-  const allowedCategories: ParsedMetar["category"][] = ["VFR", "MVFR", "IFR", "LIFR"];
-  const sourceCategory = observation.fltCat?.toUpperCase() as ParsedMetar["category"] | undefined;
-  const category = sourceCategory && allowedCategories.includes(sourceCategory)
-    ? sourceCategory
-    : rawParsed.category;
+  const allowedCategories: ParsedMetar["category"][] = [
+    "VFR",
+    "MVFR",
+    "IFR",
+    "LIFR",
+  ];
+  const sourceCategory = observation.fltCat?.toUpperCase() as
+    ParsedMetar["category"] | undefined;
+  const category =
+    sourceCategory && allowedCategories.includes(sourceCategory)
+      ? sourceCategory
+      : rawParsed.category;
 
   let observed = rawParsed.observed;
   const obsTime = Number(observation.obsTime);
@@ -387,7 +420,10 @@ function parseAwcMetar(observation: AwcMetar): ParsedMetar {
       observed = `${date.getUTCDate().toString().padStart(2, "0")} ${date
         .getUTCHours()
         .toString()
-        .padStart(2, "0")}:${date.getUTCMinutes().toString().padStart(2, "0")}Z`;
+        .padStart(
+          2,
+          "0",
+        )}:${date.getUTCMinutes().toString().padStart(2, "0")}Z`;
     }
   }
 
@@ -430,14 +466,26 @@ function categoryClasses(category: ParsedMetar["category"]) {
   }
 }
 
-function Stat({ label, value, loading }: { label: string; value: string; loading?: boolean }) {
+function Stat({
+  label,
+  value,
+  loading,
+}: {
+  label: string;
+  value: string;
+  loading?: boolean;
+}) {
   return (
     <div className="group relative overflow-hidden rounded-xl border border-slate-200 bg-white px-3 py-3 transition-colors duration-300 hover:border-sky-500/40">
-      <dt className="text-[10px] font-medium uppercase tracking-[0.16em] text-slate-500">{label}</dt>
+      <dt className="text-[10px] font-medium uppercase tracking-[0.16em] text-slate-500">
+        {label}
+      </dt>
       {loading ? (
         <dd className="wp-shimmer mt-1.5 h-5 w-14 rounded bg-slate-200" />
       ) : (
-        <dd className="mt-1 font-mono text-lg font-semibold tabular-nums text-slate-900">{value}</dd>
+        <dd className="mt-1 font-mono text-lg font-semibold tabular-nums text-slate-900">
+          {value}
+        </dd>
       )}
     </div>
   );
@@ -447,61 +495,74 @@ export function WeatherPanel() {
   const [icao, setIcao] = useState(DEFAULT_ICAO);
   const [icaoInput, setIcaoInput] = useState(DEFAULT_ICAO);
   const [airportName, setAirportName] = useState(DEFAULT_AIRPORT_NAME);
-  const [airportPosition, setAirportPosition] = useState<AirportPosition | null>(null);
+  const [airportPosition, setAirportPosition] =
+    useState<AirportPosition | null>(null);
   const [runways, setRunways] = useState<RunwayOption[]>(DEFAULT_RUNWAYS);
   const [metar, setMetar] = useState<ParsedMetar | null>(null);
   const [metarStation, setMetarStation] = useState<string>(DEFAULT_ICAO);
   const [metarDistanceNm, setMetarDistanceNm] = useState<number | null>(0);
-  const [selectedRunway, setSelectedRunway] = useState<string>(DEFAULT_RUNWAYS[0].id);
+  const [selectedRunway, setSelectedRunway] = useState<string>(
+    DEFAULT_RUNWAYS[0].id,
+  );
   const [loading, setLoading] = useState(true);
   const [airportLoading, setAirportLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
 
-  const loadMetar = useCallback(async (targetIcao: string, position: AirportPosition | null) => {
-    setLoading(true);
-    setError(null);
+  const loadMetar = useCallback(
+    async (targetIcao: string, position: AirportPosition | null) => {
+      setLoading(true);
+      setError(null);
 
-    try {
-      const params = new URLSearchParams({ icao: targetIcao });
-      if (position) {
-        params.set("lat", String(position.lat));
-        params.set("lon", String(position.lon));
+      try {
+        const params = new URLSearchParams({ icao: targetIcao });
+        if (position) {
+          params.set("lat", String(position.lat));
+          params.set("lon", String(position.lon));
+        }
+
+        const response = await fetch(`${METAR_API_URL}?${params.toString()}`, {
+          headers: { Accept: "application/json" },
+          cache: "no-store",
+        });
+
+        const payload = (await response.json().catch(() => null)) as
+          MetarProxyResponse | { error?: string } | null;
+
+        if (!response.ok) {
+          const message =
+            payload && "error" in payload ? payload.error : undefined;
+          throw new Error(message || `METAR HTTP ${response.status}`);
+        }
+
+        if (
+          !payload ||
+          !("observation" in payload) ||
+          !payload.observation?.rawOb
+        ) {
+          throw new Error(`No current METAR returned for ${targetIcao}`);
+        }
+
+        setMetar(parseAwcMetar(payload.observation));
+        setMetarStation(
+          payload.station || payload.observation.icaoId || targetIcao,
+        );
+        setMetarDistanceNm(payload.distanceNm);
+        setUpdatedAt(new Date());
+      } catch (err) {
+        setMetar(null);
+        setMetarStation("");
+        setMetarDistanceNm(null);
+        setError(
+          err instanceof Error ? err.message : "Unable to load live METAR",
+        );
+      } finally {
+        setLoading(false);
       }
-
-      const response = await fetch(`${METAR_API_URL}?${params.toString()}`, {
-        headers: { Accept: "application/json" },
-        cache: "no-store",
-      });
-
-      const payload = (await response.json().catch(() => null)) as
-        | MetarProxyResponse
-        | { error?: string }
-        | null;
-
-      if (!response.ok) {
-        const message = payload && "error" in payload ? payload.error : undefined;
-        throw new Error(message || `METAR HTTP ${response.status}`);
-      }
-
-      if (!payload || !("observation" in payload) || !payload.observation?.rawOb) {
-        throw new Error(`No current METAR returned for ${targetIcao}`);
-      }
-
-      setMetar(parseAwcMetar(payload.observation));
-      setMetarStation(payload.station || payload.observation.icaoId || targetIcao);
-      setMetarDistanceNm(payload.distanceNm);
-      setUpdatedAt(new Date());
-    } catch (err) {
-      setMetar(null);
-      setMetarStation("");
-      setMetarDistanceNm(null);
-      setError(err instanceof Error ? err.message : "Unable to load live METAR");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    },
+    [],
+  );
 
   const loadAirportData = useCallback(async (targetIcao: string) => {
     setAirportLoading(true);
@@ -513,7 +574,9 @@ export function WeatherPanel() {
       const lon = toFiniteNumber(data.longitude_deg);
       const position = lat !== null && lon !== null ? { lat, lon } : null;
 
-      setAirportName(data.name?.trim() || data.municipality?.trim() || targetIcao);
+      setAirportName(
+        data.name?.trim() || data.municipality?.trim() || targetIcao,
+      );
       setAirportPosition(position);
       setRunways(nextRunways);
       setSelectedRunway(nextRunways[0]?.id ?? "");
@@ -544,11 +607,16 @@ export function WeatherPanel() {
   );
 
   useEffect(() => {
+    // The async loader synchronizes the selected ICAO with airport and METAR data.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadAirportAndWeather(icao);
   }, [icao, loadAirportAndWeather]);
 
   useEffect(() => {
-    const timer = window.setInterval(() => void loadMetar(icao, airportPosition), REFRESH_MS);
+    const timer = window.setInterval(
+      () => void loadMetar(icao, airportPosition),
+      REFRESH_MS,
+    );
     return () => window.clearInterval(timer);
   }, [airportPosition, icao, loadMetar]);
 
@@ -583,10 +651,16 @@ export function WeatherPanel() {
     applyIcao(icaoInput);
   };
 
-  const runway = runways.find((item) => item.id === selectedRunway) ?? runways[0] ?? null;
+  const runway =
+    runways.find((item) => item.id === selectedRunway) ?? runways[0] ?? null;
 
   const wind = useMemo(() => {
-    if (metar?.windDirection === null || metar?.windSpeed === null || !metar || !runway) {
+    if (
+      metar?.windDirection === null ||
+      metar?.windSpeed === null ||
+      !metar ||
+      !runway
+    ) {
       return { head: null, tail: null, cross: null, side: "", delta: null };
     }
 
@@ -628,7 +702,8 @@ export function WeatherPanel() {
       ? 0
       : Math.min(100, (metar.ceilingFt / 5000) * 100);
 
-  const hasWindDirection = metar?.windDirection !== null && metar?.windDirection !== undefined;
+  const hasWindDirection =
+    metar?.windDirection !== null && metar?.windDirection !== undefined;
 
   return (
     <section id="weather" className="min-w-0 scroll-mt-24">
@@ -652,7 +727,10 @@ export function WeatherPanel() {
           <article className="overflow-hidden bg-white text-slate-900">
             {/* Search bar */}
             <div className="border-b border-slate-200 bg-gradient-to-b from-slate-50 to-white px-4 py-4 sm:px-5">
-              <form onSubmit={submitIcao} className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <form
+                onSubmit={submitIcao}
+                className="flex flex-col gap-2 sm:flex-row sm:items-center"
+              >
                 <label
                   htmlFor="weather-icao-search"
                   className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.2em] text-sky-600"
@@ -666,7 +744,12 @@ export function WeatherPanel() {
                       id="weather-icao-search"
                       value={icaoInput}
                       onChange={(event) => {
-                        setIcaoInput(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 4));
+                        setIcaoInput(
+                          event.target.value
+                            .toUpperCase()
+                            .replace(/[^A-Z0-9]/g, "")
+                            .slice(0, 4),
+                        );
                         if (searchError) setSearchError(null);
                       }}
                       inputMode="text"
@@ -675,7 +758,9 @@ export function WeatherPanel() {
                       spellCheck={false}
                       maxLength={4}
                       placeholder="LHBP"
-                      aria-describedby={searchError ? "weather-icao-error" : undefined}
+                      aria-describedby={
+                        searchError ? "weather-icao-error" : undefined
+                      }
                       className="h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-white pl-9 pr-3 font-mono text-base font-semibold uppercase tracking-[0.2em] text-slate-900 outline-none transition-all duration-200 placeholder:text-slate-600 focus:border-sky-500 focus:bg-white focus:ring-4 focus:ring-sky-500/15"
                     />
                   </div>
@@ -695,7 +780,10 @@ export function WeatherPanel() {
               </form>
 
               {searchError && (
-                <p id="weather-icao-error" className="wp-fade-in mt-2 text-xs text-amber-400">
+                <p
+                  id="weather-icao-error"
+                  className="wp-fade-in mt-2 text-xs text-amber-400"
+                >
                   {searchError}
                 </p>
               )}
@@ -712,7 +800,8 @@ export function WeatherPanel() {
                         : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-700"
                     }`}
                   >
-                    {item.code} <span className="text-slate-600">· {item.label}</span>
+                    {item.code}{" "}
+                    <span className="text-slate-600">· {item.label}</span>
                   </button>
                 ))}
               </div>
@@ -726,10 +815,16 @@ export function WeatherPanel() {
                     <span className="wp-pulse-dot absolute inline-flex size-full rounded-full bg-sky-400" />
                     <span className="relative inline-flex size-1.5 rounded-full bg-sky-400" />
                   </span>
-                  Weather cockpit
+                  Weather
                 </p>
-                <h2 key={icao} className="wp-fade-in mt-1 truncate font-mono text-xl font-bold tracking-tight sm:text-2xl">
-                  {icao} <span className="font-sans font-normal text-slate-600">· {airportName}</span>
+                <h2
+                  key={icao}
+                  className="wp-fade-in mt-1 truncate font-mono text-xl font-bold tracking-tight sm:text-2xl"
+                >
+                  {icao}{" "}
+                  <span className="font-sans font-normal text-slate-600">
+                    · {airportName}
+                  </span>
                 </h2>
                 <p className="mt-1 text-xs text-slate-500">
                   {metarStation
@@ -745,7 +840,7 @@ export function WeatherPanel() {
                   {metar?.category ?? (loading ? "LOADING" : "UNKNOWN")}
                 </span>
                 <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-600">
-                  {metar?.observed ? `Observed ${metar.observed}` : "No data"}
+                  {metar?.observed ? `${metar.observed}` : "No data"}
                 </span>
                 <button
                   type="button"
@@ -753,7 +848,9 @@ export function WeatherPanel() {
                   disabled={loading}
                   className="inline-flex h-9 items-center gap-2 rounded-full border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition-all duration-200 hover:border-sky-500/40 hover:text-sky-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  <RefreshCw className={`size-3.5 ${loading ? "animate-spin" : ""}`} />
+                  <RefreshCw
+                    className={`size-3.5 ${loading ? "animate-spin" : ""}`}
+                  />
                   Refresh
                 </button>
               </div>
@@ -761,7 +858,8 @@ export function WeatherPanel() {
 
             {error && (
               <div className="wp-fade-in mx-4 mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 sm:mx-5">
-                Live METAR could not be loaded: {error}. The panel will retry automatically.
+                Live METAR could not be loaded: {error}. The panel will retry
+                automatically.
               </div>
             )}
 
@@ -798,15 +896,30 @@ export function WeatherPanel() {
                     </p>
                   </div>
                   <div className="shrink-0 text-right">
-                    <div className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Crosswind risk</div>
-                    <div className={`mt-1 text-sm font-bold ${riskClasses}`}>{risk}</div>
+                    <div className="text-[10px] uppercase tracking-[0.16em] text-slate-500">
+                      Crosswind risk
+                    </div>
+                    <div className={`mt-1 text-sm font-bold ${riskClasses}`}>
+                      {risk}
+                    </div>
                   </div>
                 </div>
 
                 <div className="relative mx-auto aspect-square w-full max-w-[320px]">
-                  <svg viewBox="0 0 320 320" role="img" aria-label="Runway and wind compass" className="h-full w-full">
+                  <svg
+                    viewBox="0 0 320 320"
+                    role="img"
+                    aria-label="Runway and wind compass"
+                    className="h-full w-full"
+                  >
                     <defs>
-                      <filter id="dialGlow" x="-50%" y="-50%" width="200%" height="200%">
+                      <filter
+                        id="dialGlow"
+                        x="-50%"
+                        y="-50%"
+                        width="200%"
+                        height="200%"
+                      >
                         <feGaussianBlur stdDeviation="3" result="blur" />
                         <feMerge>
                           <feMergeNode in="blur" />
@@ -819,11 +932,32 @@ export function WeatherPanel() {
                       </radialGradient>*/}
                     </defs>
 
-                    <circle cx="160" cy="160" r="144" fill="#ffffff" stroke="#cbd5e1" strokeWidth="2" />
-                    <g className="wp-sweep" opacity={loading ? 1 : 0.5} style={{ transition: "opacity .4s" }}>
-                      <path d="M160 160 L160 20 A140 140 0 0 1 220 40 Z" fill="url(#dialSweep)" />
+                    <circle
+                      cx="160"
+                      cy="160"
+                      r="144"
+                      fill="#ffffff"
+                      stroke="#cbd5e1"
+                      strokeWidth="2"
+                    />
+                    <g
+                      className="wp-sweep"
+                      opacity={loading ? 1 : 0.5}
+                      style={{ transition: "opacity .4s" }}
+                    >
+                      <path
+                        d="M160 160 L160 20 A140 140 0 0 1 220 40 Z"
+                        fill="url(#dialSweep)"
+                      />
                     </g>
-                    <circle cx="160" cy="160" r="118" fill="none" stroke="#cbd5e1" strokeWidth="1" />
+                    <circle
+                      cx="160"
+                      cy="160"
+                      r="118"
+                      fill="none"
+                      stroke="#cbd5e1"
+                      strokeWidth="1"
+                    />
 
                     {Array.from({ length: 36 }, (_, index) => {
                       const angle = index * 10;
@@ -842,19 +976,72 @@ export function WeatherPanel() {
                       );
                     })}
 
-                    <text x="160" y="53" textAnchor="middle" fill="#0f172a" fontSize="16" fontWeight="700">N</text>
-                    <text x="160" y="281" textAnchor="middle" fill="#475569" fontSize="14" fontWeight="700">S</text>
-                    <text x="43" y="166" textAnchor="middle" fill="#475569" fontSize="14" fontWeight="700">W</text>
-                    <text x="277" y="166" textAnchor="middle" fill="#475569" fontSize="14" fontWeight="700">E</text>
+                    <text
+                      x="160"
+                      y="53"
+                      textAnchor="middle"
+                      fill="#0f172a"
+                      fontSize="16"
+                      fontWeight="700"
+                    >
+                      N
+                    </text>
+                    <text
+                      x="160"
+                      y="281"
+                      textAnchor="middle"
+                      fill="#475569"
+                      fontSize="14"
+                      fontWeight="700"
+                    >
+                      S
+                    </text>
+                    <text
+                      x="43"
+                      y="166"
+                      textAnchor="middle"
+                      fill="#475569"
+                      fontSize="14"
+                      fontWeight="700"
+                    >
+                      W
+                    </text>
+                    <text
+                      x="277"
+                      y="166"
+                      textAnchor="middle"
+                      fill="#475569"
+                      fontSize="14"
+                      fontWeight="700"
+                    >
+                      E
+                    </text>
 
                     {runway && (
                       <g
                         className="wp-needle"
                         style={{ transform: `rotate(${runway.heading}deg)` }}
                       >
-                        <rect x="147" y="69" width="26" height="182" rx="4" fill="#e2e8f0" stroke="#94a3b8" strokeWidth="2" />
-                        <line x1="160" y1="92" x2="160" y2="230" stroke="#64748b" strokeWidth="2" strokeDasharray="10 8" opacity=".4" />
-                        
+                        <rect
+                          x="147"
+                          y="69"
+                          width="26"
+                          height="182"
+                          rx="4"
+                          fill="#e2e8f0"
+                          stroke="#94a3b8"
+                          strokeWidth="2"
+                        />
+                        <line
+                          x1="160"
+                          y1="92"
+                          x2="160"
+                          y2="230"
+                          stroke="#64748b"
+                          strokeWidth="2"
+                          strokeDasharray="10 8"
+                          opacity=".4"
+                        />
 
                         {/* Runway designators shown on the corresponding runway ends. */}
                         <text
@@ -888,59 +1075,165 @@ export function WeatherPanel() {
                     {hasWindDirection && (
                       <g
                         className="wp-needle"
-                        style={{ transform: `rotate(${metar!.windDirection}deg)` }}
+                        style={{
+                          transform: `rotate(${metar!.windDirection}deg)`,
+                        }}
                         filter="url(#dialGlow)"
                       >
-                        <line x1="160" y1="62" x2="160" y2="139" stroke="#38bdf8" strokeWidth="7" strokeLinecap="round" />
+                        <line
+                          x1="160"
+                          y1="62"
+                          x2="160"
+                          y2="139"
+                          stroke="#38bdf8"
+                          strokeWidth="7"
+                          strokeLinecap="round"
+                        />
                         <path d="M160 145 L146 120 L174 120 Z" fill="#38bdf8" />
                       </g>
                     )}
 
-                    <circle cx="160" cy="160" r="10" fill="#ffffff" stroke="#94a3b8" strokeWidth="2" />
+                    <circle
+                      cx="160"
+                      cy="160"
+                      r="10"
+                      fill="#ffffff"
+                      stroke="#94a3b8"
+                      strokeWidth="2"
+                    />
                     <circle cx="160" cy="160" r="3" fill="#38bdf8" />
 
-                    <text x="160" y="320" textAnchor="middle" fill="#64748b" fontSize="10" letterSpacing="1.5">
-                      WIND {metar?.windVariable ? "VRB" : hasWindDirection ? `${metar!.windDirection!.toString().padStart(3, "0")}°` : "—"}
+                    <text
+                      x="160"
+                      y="320"
+                      textAnchor="middle"
+                      fill="#64748b"
+                      fontSize="10"
+                      letterSpacing="1.5"
+                    >
+                      WIND{" "}
+                      {metar?.windVariable
+                        ? "VRB"
+                        : hasWindDirection
+                          ? `${metar!.windDirection!.toString().padStart(3, "0")}°`
+                          : "—"}
                     </text>
                   </svg>
                 </div>
 
                 <dl className="mt-3 grid grid-cols-3 gap-2">
-                  <Stat label="Headwind" value={wind.head === null ? "—" : `${wind.head} kt`} loading={loading} />
-                  <Stat label={`Crosswind${wind.side ? ` ${wind.side}` : ""}`} value={wind.cross === null ? "—" : `${wind.cross} kt`} loading={loading} />
-                  <Stat label="Tailwind" value={wind.tail === null ? "—" : `${wind.tail} kt`} loading={loading} />
+                  <Stat
+                    label="Headwind"
+                    value={wind.head === null ? "—" : `${wind.head} kt`}
+                    loading={loading}
+                  />
+                  <Stat
+                    label={`Xwind${wind.side ? ` ${wind.side}` : ""}`}
+                    value={wind.cross === null ? "—" : `${wind.cross} kt`}
+                    loading={loading}
+                  />
+                  <Stat
+                    label="Tailwind"
+                    value={wind.tail === null ? "—" : `${wind.tail} kt`}
+                    loading={loading}
+                  />
                 </dl>
               </section>
 
               {/* Wind gauge */}
               <section className="min-w-0 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <h3 className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-600">Wind gauge</h3>
+                <h3 className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-600">
+                  Wind
+                </h3>
 
                 <div className="mx-auto mt-3 aspect-square w-full max-w-[270px]">
-                  <svg viewBox="0 0 260 260" role="img" aria-label="Wind speed gauge" className="h-full w-full">
-                    <path d="M45 190 A105 105 0 1 1 215 190" fill="none" stroke="#cbd5e1" strokeWidth="16" strokeLinecap="round" />
-                    <path d="M45 190 A105 105 0 1 1 215 190" fill="none" stroke="#0ea5e9" strokeWidth="4" strokeLinecap="round" opacity="0.6" />
+                  <svg
+                    viewBox="0 0 260 260"
+                    role="img"
+                    aria-label="Wind speed gauge"
+                    className="h-full w-full"
+                  >
+                    <path
+                      d="M45 190 A105 105 0 1 1 215 190"
+                      fill="none"
+                      stroke="#cbd5e1"
+                      strokeWidth="16"
+                      strokeLinecap="round"
+                    />
+                    <path
+                      d="M45 190 A105 105 0 1 1 215 190"
+                      fill="none"
+                      stroke="#0ea5e9"
+                      strokeWidth="4"
+                      strokeLinecap="round"
+                      opacity="0.6"
+                    />
 
                     {[0, 10, 20, 30, 40].map((value) => {
                       const angle = -120 + (value / 45) * 240;
                       return (
                         <g key={value} transform={`rotate(${angle} 130 140)`}>
-                          <line x1="130" y1="35" x2="130" y2="52" stroke="#94a3b8" strokeWidth="2" />
-                          <text x="130" y="72" textAnchor="middle" fill="#64748b" fontSize="11" transform={`rotate(${-angle} 130 72)`}>{value}</text>
+                          <line
+                            x1="130"
+                            y1="35"
+                            x2="130"
+                            y2="52"
+                            stroke="#94a3b8"
+                            strokeWidth="2"
+                          />
+                          <text
+                            x="130"
+                            y="72"
+                            textAnchor="middle"
+                            fill="#64748b"
+                            fontSize="11"
+                            transform={`rotate(${-angle} 130 72)`}
+                          >
+                            {value}
+                          </text>
                         </g>
                       );
                     })}
 
-                    <g className="wp-needle" style={{ transform: `rotate(${gaugeRotation}deg)`, transformOrigin: "130px 140px" }}>
-                      <path d="M130 48 L138 146 L130 163 L122 146 Z" fill="#475569" />
+                    <g
+                      className="wp-needle"
+                      style={{
+                        transform: `rotate(${gaugeRotation}deg)`,
+                        transformOrigin: "130px 140px",
+                      }}
+                    >
+                      <path
+                        d="M130 48 L138 146 L130 163 L122 146 Z"
+                        fill="#475569"
+                      />
                     </g>
-                    <circle cx="130" cy="140" r="16" fill="#ffffff" stroke="#94a3b8" strokeWidth="2" />
+                    <circle
+                      cx="130"
+                      cy="140"
+                      r="16"
+                      fill="#ffffff"
+                      stroke="#94a3b8"
+                      strokeWidth="2"
+                    />
                     <circle cx="130" cy="140" r="5" fill="#38bdf8" />
 
-                    <text x="130" y="213" textAnchor="middle" fill="#0f172a" fontSize="26" fontWeight="700">
+                    <text
+                      x="130"
+                      y="213"
+                      textAnchor="middle"
+                      fill="#0f172a"
+                      fontSize="26"
+                      fontWeight="700"
+                    >
                       {metar?.windSpeed ?? "—"} kt
                     </text>
-                    <text x="130" y="236" textAnchor="middle" fill="#64748b" fontSize="12">
+                    <text
+                      x="130"
+                      y="236"
+                      textAnchor="middle"
+                      fill="#64748b"
+                      fontSize="12"
+                    >
                       {metar?.windVariable
                         ? "VRB"
                         : hasWindDirection
@@ -954,27 +1247,67 @@ export function WeatherPanel() {
                 <dl className="mt-2 grid grid-cols-2 gap-2">
                   <Stat
                     label="Direction"
-                    value={metar?.windVariable ? "VRB" : hasWindDirection ? `${metar!.windDirection!.toString().padStart(3, "0")}°` : "—"}
+                    value={
+                      metar?.windVariable
+                        ? "VRB"
+                        : hasWindDirection
+                          ? `${metar!.windDirection!.toString().padStart(3, "0")}°`
+                          : "—"
+                    }
                     loading={loading}
                   />
-                  <Stat label="Gust" value={metar?.windGust ? `${metar.windGust} kt` : "none"} loading={loading} />
+                  <Stat
+                    label="Gust"
+                    value={metar?.windGust ? `${metar.windGust} kt` : "none"}
+                    loading={loading}
+                  />
+                  <Stat
+                    label="Wind speed"
+                    value={formatValue(metar?.windSpeed ?? null, " kt")}
+                    loading={loading}
+                  />
+                  <Stat
+                    label="QNH"
+                    value={formatValue(metar?.qnhHpa ?? null, " hPa")}
+                    loading={loading}
+                  />
+                  <Stat
+                    label="Temperature"
+                    value={formatValue(metar?.temperatureC ?? null, " °C")}
+                    loading={loading}
+                  />
+                  <Stat
+                    label="Dew point"
+                    value={formatValue(metar?.dewPointC ?? null, " °C")}
+                    loading={loading}
+                  />
                 </dl>
 
-                {metar?.variableFrom !== null && metar?.variableFrom !== undefined && metar?.variableTo !== null && metar?.variableTo !== undefined && (
-                  <div className="wp-fade-in mt-2 rounded-xl border border-sky-500/30 bg-sky-500/10 px-3 py-2 text-center font-mono text-xs text-sky-700">
-                    Variable {metar.variableFrom.toString().padStart(3, "0")}°–{metar.variableTo.toString().padStart(3, "0")}°
-                  </div>
-                )}
+                {metar?.variableFrom !== null &&
+                  metar?.variableFrom !== undefined &&
+                  metar?.variableTo !== null &&
+                  metar?.variableTo !== undefined && (
+                    <div className="wp-fade-in mt-2 rounded-xl border border-sky-500/30 bg-sky-500/10 px-3 py-2 text-center font-mono text-xs text-sky-700">
+                      Variable {metar.variableFrom.toString().padStart(3, "0")}
+                      °–{metar.variableTo.toString().padStart(3, "0")}°
+                    </div>
+                  )}
               </section>
 
               {/* Ceiling & visibility */}
               <section className="min-w-0 rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <h3 className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-600">Ceiling and visibility</h3>
-                    <p className="mt-1 text-sm text-slate-500">Current values decoded from the METAR.</p>
+                    <h3 className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-600">
+                      Ceiling and visibility
+                    </h3>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Current values decoded from the METAR.
+                    </p>
                   </div>
-                  <div className="font-mono text-sm font-semibold text-slate-900">{metar?.cloudLabel ?? "—"}</div>
+                  <div className="font-mono text-sm font-semibold text-slate-900">
+                    {metar?.cloudLabel ?? "—"}
+                  </div>
                 </div>
 
                 <div className="relative mt-5 h-[250px] overflow-hidden rounded-xl border border-slate-200 bg-gradient-to-b from-sky-50 via-white to-slate-50">
@@ -995,55 +1328,120 @@ export function WeatherPanel() {
                     style={{ bottom: `${ceilingPercent}%` }}
                   >
                     <span className="absolute right-0 -translate-y-[calc(100%+6px)] rounded-lg border border-sky-500/30 bg-sky-500/10 px-2 py-1 font-mono text-xs font-semibold text-sky-700">
-                      {metar?.cavok ? "CAVOK" : metar?.ceilingFt ? `${metar.ceilingFt.toLocaleString()} ft` : "No ceiling"}
+                      {metar?.cavok
+                        ? "CAVOK"
+                        : metar?.ceilingFt
+                          ? `${metar.ceilingFt.toLocaleString()} ft`
+                          : "No ceiling"}
                     </span>
                   </div>
 
                   <div className="absolute bottom-3 left-[72px] right-3">
                     <div className="mb-1 flex justify-between text-[10px] uppercase tracking-[0.12em] text-slate-500">
                       <span>Visibility</span>
-                      <span>{metar?.visibilityKm !== null && metar?.visibilityKm !== undefined ? `${metar.visibilityKm.toFixed(1)} km` : "—"}</span>
+                      <span>
+                        {metar?.visibilityKm !== null &&
+                        metar?.visibilityKm !== undefined
+                          ? `${metar.visibilityKm.toFixed(1)} km`
+                          : "—"}
+                      </span>
                     </div>
                     <div className="h-2 overflow-hidden rounded-full bg-slate-200">
                       <div
                         className="h-full rounded-full bg-sky-500 transition-all duration-700 ease-out"
-                        style={{ width: `${Math.min(100, ((metar?.visibilityKm ?? 0) / 10) * 100)}%` }}
+                        style={{
+                          width: `${Math.min(100, ((metar?.visibilityKm ?? 0) / 10) * 100)}%`,
+                        }}
                       />
                     </div>
                   </div>
                 </div>
 
                 <div className="mt-3 grid grid-cols-2 gap-2">
-                  <Stat label="Visibility" value={metar?.visibilityKm !== null && metar?.visibilityKm !== undefined ? `${metar.visibilityKm.toFixed(1)} km` : "—"} loading={loading} />
-                  <Stat label="Flight category" value={metar?.category ?? "—"} loading={loading} />
+                  <Stat
+                    label="Visibility"
+                    value={
+                      metar?.visibilityKm !== null &&
+                      metar?.visibilityKm !== undefined
+                        ? `${metar.visibilityKm.toFixed(1)} km`
+                        : "—"
+                    }
+                    loading={loading}
+                  />
+                  <Stat
+                    label="Flight category"
+                    value={metar?.category ?? "—"}
+                    loading={loading}
+                  />
                 </div>
               </section>
             </div>
 
-            <div className="grid gap-4 px-4 pb-4 sm:px-5 sm:pb-5 xl:grid-cols-[1fr_1.5fr]">
-              <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-2">
-                <Stat label="Temperature" value={formatValue(metar?.temperatureC ?? null, " °C")} loading={loading} />
-                <Stat label="Dew point" value={formatValue(metar?.dewPointC ?? null, " °C")} loading={loading} />
-                <Stat label="Wind speed" value={formatValue(metar?.windSpeed ?? null, " kt")} loading={loading} />
-                <Stat label="QNH" value={formatValue(metar?.qnhHpa ?? null, " hPa")} loading={loading} />
-              </dl>
-
+            <div className="grid gap-4 px-4 pb-4 sm:px-5 sm:pb-5 xl:grid-cols-[1fr]">
               <div className="min-w-0 rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <div className="mb-2 flex items-center justify-between gap-3">
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-sky-600">Raw METAR</span>
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-sky-600">
+                    Raw METAR
+                  </span>
                   <span className="text-[10px] text-slate-500">
-                    {updatedAt ? `Updated ${updatedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : ""}
+                    {updatedAt
+                      ? `Updated ${updatedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+                      : ""}
                   </span>
                 </div>
                 <pre className="whitespace-pre-wrap break-words font-mono text-sm leading-6 text-slate-700">
-                  {metar?.raw ?? (loading ? `${icao} METAR loading…` : "No METAR available")}
+                  {metar?.raw ??
+                    (loading ? `${icao} METAR loading…` : "No METAR available")}
                 </pre>
               </div>
             </div>
 
             <footer className="border-t border-slate-200 bg-slate-50 px-4 py-3 text-[11px] leading-5 text-slate-500 sm:px-5">
-              METAR source: NOAA/NWS Aviation Weather Center (aviationweather.gov), requested through the app's server-side /api/metar proxy. If the selected airport is not a METAR station, the proxy selects the nearest current reporting station by geographic distance. Runways and headings are loaded from an OurAirports-based database. Always verify operational information with the applicable official aviation sources.
+              METAR source: NOAA/NWS Aviation Weather Center
+              (aviationweather.gov), requested through the app's server-side
+              /api/metar proxy. If the selected airport is not a METAR station,
+              the proxy selects the nearest current reporting station by
+              geographic distance. Runways and headings are loaded from an
+              OurAirports-based database. Always verify operational information
+              with the applicable official aviation sources.
             </footer>
+          </article>
+        </CardContent>
+      </Card>
+
+      <Card className="llsigwx-card mt-4 overflow-hidden border-slate-200 bg-white shadow-xl shadow-slate-200/70">
+        <CardContent className="p-0">
+          <article className="bg-white text-slate-900">
+            <header className="llsigwx-card__header">
+              <div className="min-w-0">
+                <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.2em] text-sky-600">
+                  <FileText className="size-3.5" />
+                  LLSIGWX
+                </p>
+                <h2 className="llsigwx-card__title">
+                  Low-level significant weather chart
+                </h2>
+              </div>
+              <a
+                href={LLSIGWX_PDF_PROXY_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="llsigwx-card__open"
+                aria-label="LLSIGWX PDF megnyitása teljes nézetben"
+              >
+                <ExternalLink className="size-4" />
+                <span>Teljes nézet</span>
+              </a>
+            </header>
+
+            <div className="llsigwx-card__frame-wrap">
+              <iframe
+                title="LLSIGWX low-level significant weather chart"
+                src={LLSIGWX_PDF_PROXY_URL}
+                className="llsigwx-card__frame"
+                loading="lazy"
+              />
+            </div>
           </article>
         </CardContent>
       </Card>

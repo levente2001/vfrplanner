@@ -6,6 +6,7 @@ import { adaptAviationWeather } from "./src/lib/weather/providers/aviationWeathe
 import { adaptCheckWx } from "./src/lib/weather/providers/checkwx";
 
 const HUNGARY_BBOX = "45.7,16.0,48.7,23.0";
+const LLSIGWX_PDF_URL = "https://www.netbriefing.hu/Kepek/MET/LLSIGWX.pdf";
 const CHECKWX_STATIONS = [
   "LHBP",
   "LHDC",
@@ -18,13 +19,201 @@ const CHECKWX_STATIONS = [
   "LHNY",
 ];
 
+function toNumber(value: unknown) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+function distanceNm(
+  from: { lat: number; lon: number },
+  to: { lat: number; lon: number },
+) {
+  const radiusNm = 3440.065;
+  const lat1 = (from.lat * Math.PI) / 180;
+  const lat2 = (to.lat * Math.PI) / 180;
+  const deltaLat = ((to.lat - from.lat) * Math.PI) / 180;
+  const deltaLon = ((to.lon - from.lon) * Math.PI) / 180;
+  const a =
+    Math.sin(deltaLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLon / 2) ** 2;
+  return radiusNm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
 function weatherApiPlugin(apiKey: string, configuredProvider: string): Plugin {
   const cache = new Map<string, { expiresAt: number; body: string }>();
+  let llsigwxCache: {
+    expiresAt: number;
+    body: Uint8Array;
+    etag: string | null;
+    lastModified: string | null;
+  } | null = null;
   const ttlMs = 5 * 60 * 1000;
 
   return {
     name: "aviation-weather-api-proxy",
     configureServer(server) {
+      server.middlewares.use("/api/metar", async (req, res) => {
+        const url = new URL(req.url ?? "", "http://localhost");
+        const icao = url.searchParams.get("icao")?.toUpperCase() ?? "";
+        const lat = toNumber(url.searchParams.get("lat"));
+        const lon = toNumber(url.searchParams.get("lon"));
+        if (!/^[A-Z0-9]{4}$/.test(icao)) {
+          res.statusCode = 400;
+          res.setHeader("content-type", "application/json");
+          res.end(JSON.stringify({ error: "Invalid ICAO code." }));
+          return;
+        }
+
+        const cacheKey = `metar:${icao}:${lat ?? ""}:${lon ?? ""}`;
+        const cached = cache.get(cacheKey);
+        if (cached && cached.expiresAt > Date.now()) {
+          res.statusCode = 200;
+          res.setHeader("content-type", "application/json");
+          res.setHeader("cache-control", "private, max-age=120");
+          res.end(cached.body);
+          return;
+        }
+
+        try {
+          const headers = {
+            "User-Agent": "vfrplanner/0.1 local-development",
+          };
+          const params =
+            lat !== null && lon !== null
+              ? `bbox=${lat - 1},${lon - 1},${lat + 1},${lon + 1}`
+              : `ids=${icao}`;
+          const response = await fetch(
+            `https://aviationweather.gov/api/data/metar?${params}&format=json`,
+            { headers },
+          );
+          if (!response.ok)
+            throw new Error(`AviationWeather METAR HTTP ${response.status}`);
+          const data = await response.json();
+          const observations = Array.isArray(data)
+            ? data.filter(isRecord).filter((item) => item.rawOb)
+            : [];
+          if (!observations.length) {
+            throw new Error(`No current METAR returned for ${icao}`);
+          }
+
+          const targetPosition =
+            lat !== null && lon !== null ? { lat, lon } : null;
+          const selected =
+            targetPosition === null
+              ? (observations.find((item) => item.icaoId === icao) ??
+                observations[0])
+              : observations
+                  .map((item) => {
+                    const itemLat = toNumber(item.lat);
+                    const itemLon = toNumber(item.lon);
+                    return {
+                      item,
+                      distance:
+                        itemLat === null || itemLon === null
+                          ? Number.POSITIVE_INFINITY
+                          : distanceNm(targetPosition, {
+                              lat: itemLat,
+                              lon: itemLon,
+                            }),
+                    };
+                  })
+                  .sort((a, b) => a.distance - b.distance)[0]?.item;
+
+          if (!selected)
+            throw new Error(`No current METAR returned for ${icao}`);
+          const selectedLat = toNumber(selected.lat);
+          const selectedLon = toNumber(selected.lon);
+          const selectedDistance =
+            targetPosition && selectedLat !== null && selectedLon !== null
+              ? distanceNm(targetPosition, {
+                  lat: selectedLat,
+                  lon: selectedLon,
+                })
+              : null;
+          const body = JSON.stringify({
+            station:
+              typeof selected.icaoId === "string" ? selected.icaoId : icao,
+            distanceNm:
+              selectedDistance === null
+                ? null
+                : Math.round(selectedDistance * 10) / 10,
+            observation: selected,
+            source: "NOAA/NWS Aviation Weather Center",
+          });
+          cache.set(cacheKey, { expiresAt: Date.now() + ttlMs, body });
+          res.statusCode = 200;
+          res.setHeader("content-type", "application/json");
+          res.setHeader("cache-control", "private, max-age=120");
+          res.end(body);
+        } catch (error) {
+          res.statusCode = 502;
+          res.setHeader("content-type", "application/json");
+          res.end(
+            JSON.stringify({
+              error:
+                error instanceof Error
+                  ? error.message
+                  : "METAR request failed.",
+            }),
+          );
+        }
+      });
+
+      server.middlewares.use("/api/weather/llsigwx.pdf", async (_req, res) => {
+        if (llsigwxCache && llsigwxCache.expiresAt > Date.now()) {
+          res.statusCode = 200;
+          res.setHeader("content-type", "application/pdf");
+          res.setHeader("cache-control", "private, max-age=300");
+          res.setHeader(
+            "content-disposition",
+            'inline; filename="LLSIGWX.pdf"',
+          );
+          if (llsigwxCache.etag) res.setHeader("etag", llsigwxCache.etag);
+          if (llsigwxCache.lastModified) {
+            res.setHeader("last-modified", llsigwxCache.lastModified);
+          }
+          res.end(llsigwxCache.body);
+          return;
+        }
+
+        try {
+          const response = await fetch(LLSIGWX_PDF_URL, {
+            headers: {
+              "User-Agent": "vfrplanner/0.1 local-development",
+              Accept: "application/pdf",
+            },
+          });
+          if (!response.ok) throw new Error(`LLSIGWX HTTP ${response.status}`);
+          const body = new Uint8Array(await response.arrayBuffer());
+          llsigwxCache = {
+            expiresAt: Date.now() + ttlMs,
+            body,
+            etag: response.headers.get("etag"),
+            lastModified: response.headers.get("last-modified"),
+          };
+          res.statusCode = 200;
+          res.setHeader("content-type", "application/pdf");
+          res.setHeader("cache-control", "private, max-age=300");
+          res.setHeader(
+            "content-disposition",
+            'inline; filename="LLSIGWX.pdf"',
+          );
+          if (llsigwxCache.etag) res.setHeader("etag", llsigwxCache.etag);
+          if (llsigwxCache.lastModified) {
+            res.setHeader("last-modified", llsigwxCache.lastModified);
+          }
+          res.end(body);
+        } catch {
+          res.statusCode = 502;
+          res.setHeader("content-type", "application/json");
+          res.end(JSON.stringify({ error: "LLSIGWX chart request failed." }));
+        }
+      });
+
       server.middlewares.use("/api/weather/stations", async (_req, res) => {
         const provider =
           configuredProvider === "checkwx" ? "checkwx" : "aviationweather";

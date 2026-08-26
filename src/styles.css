@@ -260,6 +260,111 @@
   }
 }
 
+.llsigwx-card {
+  max-width: 100%;
+}
+
+.llsigwx-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid rgb(226 232 240);
+  background: rgb(248 250 252);
+  padding: 1rem 1.25rem;
+}
+
+.llsigwx-card__title {
+  margin-top: 0.25rem;
+  overflow: hidden;
+  color: #0f172a;
+  font-family: var(--font-mono);
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.llsigwx-card__open {
+  display: inline-flex;
+  min-height: 2.5rem;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  border: 1px solid rgb(203 213 225);
+  border-radius: 0.75rem;
+  background: #fff;
+  padding: 0 0.85rem;
+  color: #334155;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.llsigwx-card__open:hover {
+  border-color: rgb(14 165 233 / 0.55);
+  color: #0369a1;
+}
+
+.llsigwx-card__frame-wrap {
+  height: min(72vh, 820px);
+  min-height: 620px;
+  overflow: hidden;
+  background: #e2e8f0;
+}
+
+.llsigwx-card__frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #e2e8f0;
+}
+
+@media (max-width: 760px) {
+  .llsigwx-card {
+    margin-right: -0.25rem;
+    margin-left: -0.25rem;
+    border-radius: 0.75rem;
+  }
+
+  .llsigwx-card__header {
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.8rem;
+  }
+
+  .llsigwx-card__title {
+    display: -webkit-box;
+    font-size: 0.95rem;
+    line-height: 1.3;
+    white-space: normal;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .llsigwx-card__open {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    border-radius: 0.65rem;
+    padding: 0;
+  }
+
+  .llsigwx-card__open span {
+    display: none;
+  }
+
+  .llsigwx-card__frame-wrap {
+    height: calc(100svh - 12rem);
+    min-height: 430px;
+    max-height: 720px;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
 .metar-taf-panel {
   display: grid;
   grid-template-rows: auto minmax(620px, 76vh);

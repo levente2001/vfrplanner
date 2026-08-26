@@ -1,4 +1,5 @@
-import React, { useCallback, useState } from "react";
+/* eslint-disable react-refresh/only-export-components */
+import React, { useCallback, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { User } from "firebase/auth";
 import "./styles.css";
@@ -11,12 +12,31 @@ import { CloudSun, FileWarning, Map, Menu, Scale, X } from "lucide-react";
 import type { WaypointMeta } from "@/lib/vfr/nav";
 import { registerServiceWorker } from "./registerServiceWorker";
 
-const navItems = [
-  { href: "#planner", label: "Planner", icon: Map, active: true },
-  { href: "#weather", label: "AVWeather", icon: CloudSun, isNew: true },
-  { href: "#notams", label: "NOTAMs", icon: FileWarning },
-  { href: "#wb", label: "Weight & Balance", icon: Scale },
+type ViewId = "planner" | "weather" | "notams" | "wb";
+
+const navItems: Array<{
+  id: ViewId;
+  href: `#${ViewId}`;
+  label: string;
+  icon: typeof Map;
+  isNew?: boolean;
+}> = [
+  { id: "planner", href: "#planner", label: "Planner", icon: Map },
+  {
+    id: "weather",
+    href: "#weather",
+    label: "AVWeather",
+    icon: CloudSun,
+    isNew: true,
+  },
+  { id: "notams", href: "#notams", label: "NOTAMs", icon: FileWarning },
+  { id: "wb", href: "#wb", label: "Weight & Balance", icon: Scale },
 ];
+
+function viewFromHash(hash: string): ViewId {
+  const id = hash.replace("#", "");
+  return navItems.some((item) => item.id === id) ? (id as ViewId) : "planner";
+}
 
 function App() {
   const [stats, setStats] = useState<RouteStats>({
@@ -28,12 +48,33 @@ function App() {
   const [user, setUser] = useState<User | null>(null);
   const [routeWaypoints, setRouteWaypoints] = useState<WaypointMeta[]>([]);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [activeView, setActiveView] = useState<ViewId>(() =>
+    viewFromHash(window.location.hash),
+  );
   const handleStats = useCallback((next: RouteStats) => setStats(next), []);
-  const handleUserChange = useCallback((next: User | null) => setUser(next), []);
+  const handleUserChange = useCallback(
+    (next: User | null) => setUser(next),
+    [],
+  );
   const handleWaypointsChange = useCallback(
     (next: WaypointMeta[]) => setRouteWaypoints(next),
     [],
   );
+  const handleViewChange = useCallback((view: ViewId) => {
+    setActiveView(view);
+    if (window.location.hash !== `#${view}`) {
+      window.history.pushState(null, "", `#${view}`);
+    }
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
+
+  useEffect(() => {
+    function onHashChange() {
+      setActiveView(viewFromHash(window.location.hash));
+    }
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
 
   return (
     <div className="min-h-screen bg-background text-foreground lg:grid lg:grid-cols-[220px_minmax(0,1fr)]">
@@ -53,11 +94,16 @@ function App() {
               <a
                 key={item.href}
                 href={item.href}
+                onClick={(event) => {
+                  event.preventDefault();
+                  handleViewChange(item.id);
+                }}
                 className={`flex h-10 shrink-0 items-center gap-3 rounded-sm px-3 font-mono text-xs font-semibold transition-colors ${
-                  item.active
+                  activeView === item.id
                     ? "bg-primary/10 text-primary"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 }`}
+                aria-current={activeView === item.id ? "page" : undefined}
               >
                 <Icon className="size-4" />
                 {item.label}
@@ -89,7 +135,11 @@ function App() {
               onClick={() => setMobileMenuOpen((open) => !open)}
               aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
             >
-              {mobileMenuOpen ? <X className="size-5" /> : <Menu className="size-5" />}
+              {mobileMenuOpen ? (
+                <X className="size-5" />
+              ) : (
+                <Menu className="size-5" />
+              )}
             </button>
             {mobileMenuOpen && (
               <div className="absolute right-4 top-[calc(100%+8px)] z-[1000] w-[min(320px,calc(100vw-2rem))] rounded-md border border-border bg-background p-3 shadow-xl">
@@ -100,12 +150,19 @@ function App() {
                       <a
                         key={item.href}
                         href={item.href}
-                        onClick={() => setMobileMenuOpen(false)}
+                        onClick={(event) => {
+                          event.preventDefault();
+                          setMobileMenuOpen(false);
+                          handleViewChange(item.id);
+                        }}
                         className={`flex h-10 items-center gap-3 rounded-sm px-3 font-mono text-xs font-semibold transition-colors ${
-                          item.active
+                          activeView === item.id
                             ? "bg-primary/10 text-primary"
                             : "text-muted-foreground hover:bg-muted hover:text-foreground"
                         }`}
+                        aria-current={
+                          activeView === item.id ? "page" : undefined
+                        }
                       >
                         <Icon className="size-4" />
                         {item.label}
@@ -140,19 +197,30 @@ function App() {
                 </p>
               </div>
             ))}
-            <AuthPanel onUserChange={handleUserChange} className="hidden lg:flex" />
+            <AuthPanel
+              onUserChange={handleUserChange}
+              className="hidden lg:flex"
+            />
           </div>
         </header>
 
-        <main className="space-y-6 px-4 py-5 sm:px-6 lg:px-8">
-          <PlannerPanel
-            onStats={handleStats}
-            onWaypointsChange={handleWaypointsChange}
-            user={user}
-          />
-          <WeatherPanel />
-          <NotamPanel waypoints={routeWaypoints} />
-          <WbPanel />
+        <main className="px-4 py-5 sm:px-6 lg:px-8">
+          <div hidden={activeView !== "planner"}>
+            <PlannerPanel
+              onStats={handleStats}
+              onWaypointsChange={handleWaypointsChange}
+              user={user}
+            />
+          </div>
+          <div hidden={activeView !== "weather"}>
+            <WeatherPanel />
+          </div>
+          <div hidden={activeView !== "notams"}>
+            <NotamPanel waypoints={routeWaypoints} />
+          </div>
+          <div hidden={activeView !== "wb"}>
+            <WbPanel />
+          </div>
         </main>
       </div>
     </div>

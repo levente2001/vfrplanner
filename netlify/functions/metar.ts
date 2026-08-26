@@ -114,7 +114,7 @@ function chunk<T>(items: T[], size: number) {
   return result;
 }
 
-export async function GET(request: Request) {
+export default async function handler(request: Request) {
   try {
     const url = new URL(request.url);
     const icao = (url.searchParams.get("icao") ?? "").trim().toUpperCase();
