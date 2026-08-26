@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="sky" x1="256" y1="56" x2="256" y2="454" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#075985"/>
+      <stop offset=".52" stop-color="#0ea5e9"/>
+      <stop offset="1" stop-color="#7dd3fc"/>
+    </linearGradient>
+    <linearGradient id="cloud" x1="256" y1="326" x2="256" y2="456" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f8fafc"/>
+      <stop offset="1" stop-color="#e2e8f0"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#020617" flood-opacity=".32"/>
+    </filter>
+    <clipPath id="clip">
+      <rect x="56" y="56" width="400" height="400" rx="76"/>
+    </clipPath>
+  </defs>
+
+  <rect x="56" y="56" width="400" height="400" rx="76" fill="url(#sky)" filter="url(#shadow)"/>
+  <g clip-path="url(#clip)">
+    <path d="M58 272h186" fill="none" stroke="#dbeafe" stroke-width="4" stroke-linecap="round" opacity=".55"/>
+
+    <path d="M244 242c27 14 74 22 136 22 10 0 20 8 20 15 0 6-9 10-20 10h-72l-42 34h-19l21-36h-47l-23 18h-16l12-27-12-30h17l24 22h50l-28-28Z" fill="#fff"/>
+    <path d="M244 242c27 14 74 22 136 22 10 0 20 8 20 15 0 6-9 10-20 10h-72l-42 34h-19l21-36h-47l-23 18h-16l12-27-12-30h17l24 22h50l-28-28Z" fill="#e0f2fe" opacity=".18"/>
+
+    <circle cx="54" cy="402" r="68" fill="#bae6fd"/>
+    <circle cx="124" cy="378" r="55" fill="#e0f2fe"/>
+    <circle cx="190" cy="396" r="61" fill="#bae6fd"/>
+    <circle cx="242" cy="376" r="42" fill="#e0f2fe"/>
+    <circle cx="300" cy="394" r="59" fill="#bae6fd"/>
+    <circle cx="360" cy="376" r="50" fill="#e0f2fe"/>
+    <circle cx="424" cy="402" r="68" fill="#bae6fd"/>
+
+    <circle cx="86" cy="424" r="70" fill="url(#cloud)"/>
+    <circle cx="158" cy="404" r="62" fill="url(#cloud)"/>
+    <circle cx="232" cy="420" r="66" fill="url(#cloud)"/>
+    <circle cx="310" cy="404" r="58" fill="url(#cloud)"/>
+    <circle cx="386" cy="426" r="74" fill="url(#cloud)"/>
+    <rect x="56" y="414" width="400" height="70" fill="url(#cloud)"/>
+  </g>
+
+  <rect x="56" y="56" width="400" height="400" rx="76" fill="none" stroke="#ffffff" stroke-opacity=".22" stroke-width="4"/>
+</svg>
