@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "node:path";
 import type { ServerResponse } from "node:http";
+import { handleFlightLoggerAircraftDetail } from "./src/lib/flightloggerAircraftDetail";
 import { handleFlightLoggerAircrafts } from "./src/lib/flightloggerAircrafts";
 import { handleFlightLoggerBookings } from "./src/lib/flightloggerBookings";
 import { adaptAviationWeather } from "./src/lib/weather/providers/aviationWeather";
@@ -83,6 +84,21 @@ function weatherApiPlugin(apiKey: string, configuredProvider: string): Plugin {
       server.middlewares.use("/api/aircrafts", async (req, res) => {
         const response = await handleFlightLoggerAircrafts(
           new Request(`http://localhost/api/aircrafts${req.url ?? ""}`, {
+            method: req.method,
+            headers: {
+              authorization: req.headers.authorization ?? "",
+              "x-flightlogger-token": String(
+                req.headers["x-flightlogger-token"] ?? "",
+              ),
+            },
+          }),
+        );
+        await sendFetchResponse(res, response);
+      });
+
+      server.middlewares.use("/api/aircraft-detail", async (req, res) => {
+        const response = await handleFlightLoggerAircraftDetail(
+          new Request(`http://localhost/api/aircraft-detail${req.url ?? ""}`, {
             method: req.method,
             headers: {
               authorization: req.headers.authorization ?? "",

@@ -41,6 +41,20 @@ export type FlightLoggerMaintenanceType = {
   updatedAt?: string | null;
 };
 
+export type FlightLoggerUserSummary = {
+  id?: string;
+  callSign?: string;
+  firstName?: string;
+  lastName?: string;
+};
+
+export type FlightLoggerAuditInfo = {
+  createdAt?: string | null;
+  createdById?: string | null;
+  updatedAt?: string | null;
+  updatedById?: string | null;
+};
+
 export type FlightLoggerMaintenancePart = {
   id?: string;
   name?: string;
@@ -52,6 +66,9 @@ export type FlightLoggerMaintenancePart = {
   expiresOnLog?: string | null;
   approvedAt?: string | null;
   rejectedAt?: string | null;
+  audit?: FlightLoggerAuditInfo | null;
+  approvedBy?: FlightLoggerUserSummary | null;
+  rejectedBy?: FlightLoggerUserSummary | null;
   maintenanceType?: FlightLoggerMaintenanceType | null;
 };
 
@@ -116,6 +133,9 @@ export type FlightLoggerAircraft = {
   nextService?: FlightLoggerServiceSummary | null;
   worstMaintenanceWarning?: FlightLoggerMaintenanceWarning | null;
   worstWarning?: FlightLoggerMaintenanceWarning | null;
+  requiringApprovalMaintenanceParts?: FlightLoggerMaintenancePart[];
+  currentMaintenanceParts?: FlightLoggerMaintenancePart[];
+  previousMaintenanceParts?: FlightLoggerMaintenancePart[];
   maintenanceParts: FlightLoggerMaintenancePart[];
   raw: Record<string, unknown>;
 };

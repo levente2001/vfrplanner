@@ -1,13 +1,10 @@
-import {
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
+import { useMemo, useState, type ReactNode } from "react";
 
 import type { User } from "firebase/auth";
 
 import {
   AlertTriangle,
+  ChevronDown,
   Clock3,
   Fuel,
   Gauge,
@@ -16,17 +13,14 @@ import {
   Plane,
   RefreshCcw,
   Search,
-  Wrench,
+  ShieldCheck,
 } from "lucide-react";
 
 import { useAircrafts } from "./api/aircrafts";
 
 import { useAircraftDetail } from "./api/aircraftDetail";
 
-import {
-  FlightLoggerGate,
-  useFlightLoggerToken,
-} from "./components/AuthGate";
+import { FlightLoggerGate, useFlightLoggerToken } from "./components/AuthGate";
 
 import type {
   FlightLoggerAircraft,
@@ -34,22 +28,11 @@ import type {
   FlightLoggerMaintenanceWarning,
 } from "./shared/aircraftTypes";
 
-export default function AircraftsPanel({
-  user,
-}: {
-  user: User | null;
-}) {
-  const {
-    apiToken,
-    saveToken,
-  } =
-    useFlightLoggerToken(user);
+export default function AircraftsPanel({ user }: { user: User | null }) {
+  const { apiToken, saveToken } = useFlightLoggerToken(user);
 
   return (
-    <section
-      id="aircrafts"
-      className="flightlogger-panel text-zinc-950"
-    >
+    <section id="aircrafts" className="flightlogger-panel text-zinc-950">
       <FlightLoggerGate
         user={user}
         apiToken={apiToken}
@@ -58,12 +41,8 @@ export default function AircraftsPanel({
       >
         <AircraftsContent
           apiToken={apiToken}
-          userEmail={
-            user?.email ?? null
-          }
-          onReplaceToken={() =>
-            saveToken("")
-          }
+          userEmail={user?.email ?? null}
+          onReplaceToken={() => saveToken("")}
         />
       </FlightLoggerGate>
     </section>
@@ -79,19 +58,9 @@ function AircraftsContent({
   userEmail: string | null;
   onReplaceToken: () => void;
 }) {
-  const [
-    search,
-    setSearch,
-  ] =
-    useState("");
+  const [search, setSearch] = useState("");
 
-  const [
-    selectedId,
-    setSelectedId,
-  ] =
-    useState<
-      string | null
-    >(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   /*
    * Lightweight list query.
@@ -99,101 +68,72 @@ function AircraftsContent({
    * This only downloads the basic fields
    * for all aircraft.
    */
-  const aircraftQuery =
-    useAircrafts(
-      apiToken,
-      search,
-    );
+  const aircraftQuery = useAircrafts(apiToken, search);
 
-  const aircraft =
-    useMemo(
-      () =>
-        aircraftQuery.data
-          ?.aircraft ?? [],
-      [
-        aircraftQuery.data
-          ?.aircraft,
-      ],
-    );
+  const aircraft = useMemo(
+    () => aircraftQuery.data?.aircraft ?? [],
+    [aircraftQuery.data?.aircraft],
+  );
 
   /*
-   * Select the explicitly selected aircraft,
-   * or automatically select the first one.
+   * Keep the initial view as a fast aircraft list.
+   * Details are loaded only after an explicit click, and only for the
+   * row that is currently expanded.
    */
-  const selectedSummary =
-    useMemo(
-      () =>
-        aircraft.find(
-          (item) =>
-            item.id ===
-            selectedId,
-        ) ??
-        aircraft[0] ??
-        null,
-      [
-        aircraft,
-        selectedId,
-      ],
-    );
+  const expandedSummary = useMemo(
+    () =>
+      expandedId
+        ? (aircraft.find((item) => item.id === expandedId) ?? null)
+        : null,
+    [aircraft, expandedId],
+  );
 
   /*
    * Heavy/detail request is performed ONLY
-   * for the currently selected aircraft.
+   * for the currently expanded aircraft.
    */
-  const detailQuery =
-    useAircraftDetail(
-      apiToken,
-      selectedSummary
-        ?.callSign ?? null,
-    );
+  const detailQuery = useAircraftDetail(
+    apiToken,
+    expandedSummary?.callSign ?? null,
+  );
 
-  const selectedAircraft =
-    detailQuery.data
-      ?.aircraft ?? null;
+  const selectedAircraft = detailQuery.data?.aircraft ?? null;
 
-  const maintenanceCount =
-    selectedAircraft
-      ? selectedAircraft
-          .maintenanceParts
-          .length
-      : null;
+  const aircraftWithWarnings = aircraft.filter(hasActiveWarning).length;
 
-  const refreshing =
-    aircraftQuery.isFetching ||
-    detailQuery.isFetching;
+  const airworthyCount = aircraft.length - aircraftWithWarnings;
+
+  const refreshing = aircraftQuery.isFetching || detailQuery.isFetching;
 
   async function refresh() {
     await aircraftQuery.refetch();
 
-    if (
-      selectedSummary
-        ?.callSign
-    ) {
+    if (expandedSummary?.callSign) {
       await detailQuery.refetch();
     }
+  }
+
+  function toggleExpanded(id: string) {
+    setExpandedId((current) => (current === id ? null : id));
   }
 
   return (
     <>
       <header className="sticky top-0 z-30 border-b border-zinc-200 bg-white/95 px-3 py-3 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3">
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-cyan-700 text-white">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cyan-700 text-white shadow-sm">
               <Plane size={20} />
             </div>
 
             <div className="min-w-0">
-              <h1 className="truncate text-base font-bold text-zinc-950 sm:text-lg">
-                FlightLogger
+              <h1 className="truncate text-base font-bold tracking-tight text-zinc-950 sm:text-lg">
                 Aircrafts
               </h1>
 
-              <p className="truncate text-xs text-zinc-600">
-                {aircraft.length}{" "}
-                aircraft
-                {userEmail
-                  ? ` · ${userEmail}`
-                  : ""}
+              <p className="truncate text-xs text-zinc-500">
+                {aircraft.length} aircraft
+                {userEmail ? ` · ${userEmail}` : ""}
               </p>
             </div>
           </div>
@@ -201,870 +141,503 @@ function AircraftsContent({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              className="inline-flex h-10 items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 text-xs font-semibold text-zinc-700 hover:border-cyan-600 hover:text-cyan-800"
-              onClick={
-                onReplaceToken
-              }
+              className="inline-flex h-10 items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 text-xs font-semibold text-zinc-700 transition hover:border-cyan-600 hover:text-cyan-800"
+              onClick={onReplaceToken}
               aria-label="Replace FlightLogger API token"
             >
-              <KeyRound
-                size={16}
-              />
+              <KeyRound size={16} />
 
-              <span className="hidden sm:inline">
-                Replace token
-              </span>
+              <span className="hidden sm:inline">Replace token</span>
             </button>
 
             <button
               type="button"
-              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-800 disabled:opacity-50"
-              onClick={
-                refresh
-              }
-              disabled={
-                refreshing
-              }
+              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-200 bg-white text-zinc-800 transition hover:border-cyan-600 hover:text-cyan-800 disabled:opacity-50"
+              onClick={refresh}
+              disabled={refreshing}
               aria-label="Refresh aircraft"
               title="Refresh"
             >
               <RefreshCcw
                 size={18}
-                className={
-                  refreshing
-                    ? "animate-spin"
-                    : ""
-                }
+                className={refreshing ? "animate-spin" : ""}
               />
             </button>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-3 py-4 md:px-5">
-        <section className="mb-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_220px_220px]">
+      <main className="mx-auto max-w-5xl px-3 py-4 md:px-5">
+        <section className="mb-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_140px_140px]">
           <label className="relative block">
             <Search className="pointer-events-none absolute left-3 top-3 size-5 text-zinc-400" />
 
             <input
-              className="h-11 w-full rounded-lg border border-zinc-200 bg-white pl-10 pr-3 text-sm outline-none transition focus:border-cyan-700 focus:ring-2 focus:ring-cyan-700/20"
+              className="h-11 w-full rounded-xl border border-zinc-200 bg-white pl-10 pr-3 text-sm outline-none transition focus:border-cyan-700 focus:ring-2 focus:ring-cyan-700/20"
               value={search}
-              onChange={(
-                event,
-              ) =>
-                setSearch(
-                  event.target
-                    .value,
-                )
-              }
+              onChange={(event) => setSearch(event.target.value)}
               placeholder="Search by callsign, model, or class"
               aria-label="Search aircraft"
             />
           </label>
 
           <MetricCard
-            icon={
-              <Wrench
-                size={18}
-              />
-            }
-            label="Selected maintenance"
-            value={
-              maintenanceCount ===
-              null
-                ? "-"
-                : String(
-                    maintenanceCount,
-                  )
-            }
+            icon={<AlertTriangle size={17} />}
+            label="Warnings"
+            value={String(aircraftWithWarnings)}
+            tone={aircraftWithWarnings > 0 ? "warn" : "neutral"}
           />
 
           <MetricCard
-            icon={
-              <AlertTriangle
-                size={18}
-              />
-            }
-            label="Disabled"
-            value={String(
-              aircraft.filter(
-                (item) =>
-                  item.disabled,
-              ).length,
-            )}
+            icon={<ShieldCheck size={17} />}
+            label="Airworthy"
+            value={String(airworthyCount)}
+            tone="ok"
           />
         </section>
 
         {aircraftQuery.isError ? (
-          <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
-            {aircraftQuery.error instanceof
-            Error
-              ? aircraftQuery
-                  .error
-                  .message
+          <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+            {aircraftQuery.error instanceof Error
+              ? aircraftQuery.error.message
               : "Unable to load aircraft."}
           </div>
         ) : null}
 
         {aircraftQuery.isLoading ? (
-          <div className="mb-4 rounded-lg border border-zinc-200 bg-white p-4 text-sm text-zinc-700">
+          <div className="mb-4 rounded-xl border border-zinc-200 bg-white p-4 text-sm text-zinc-600">
             Loading aircraft...
           </div>
         ) : null}
 
-        {aircraftQuery.data
-          ?.warning ? (
-          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-            {
-              aircraftQuery
-                .data.warning
-            }
+        {aircraftQuery.data?.warning ? (
+          <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            {aircraftQuery.data.warning}
           </div>
         ) : null}
 
-        <div className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
-          <section className="space-y-2">
-            {aircraft.map(
-              (item) => (
-                <button
-                  type="button"
-                  key={
-                    item.id
-                  }
-                  className={`w-full rounded-lg border bg-white p-4 text-left shadow-sm transition hover:border-cyan-600 ${
-                    selectedSummary?.id ===
-                    item.id
-                      ? "border-cyan-700 ring-2 ring-cyan-700/20"
-                      : "border-zinc-200"
-                  }`}
-                  onClick={() =>
-                    setSelectedId(
-                      item.id,
-                    )
-                  }
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-lg font-bold text-zinc-950">
-                        {
-                          item.callSign
-                        }
-                      </p>
-
-                      <p className="truncate text-sm text-zinc-600">
-                        {
-                          item.model
-                        }
-                      </p>
-                    </div>
-
-                    <StatusBadge
-                      disabled={
-                        item.disabled
-                      }
-                    />
-                  </div>
-
-                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-zinc-600">
-                    <span>
-                      {formatEnum(
-                        item.aircraftClass,
-                      )}
-                    </span>
-
-                    <span>
-                      {formatEnum(
-                        item.aircraftType,
-                      )}
-                    </span>
-
-                    <span>
-                      {item
-                        .homeAirport
-                        ?.name ??
-                        "No home base"}
-                    </span>
-
-                    <span>
-                      {item
-                        .currentAirport
-                        ?.name ??
-                        "No current airport"}
-                    </span>
-                  </div>
-                </button>
-              ),
-            )}
-
-            {!aircraftQuery.isLoading &&
-            !aircraft.length ? (
-              <div className="rounded-lg border border-zinc-200 bg-white p-6 text-center text-sm text-zinc-600">
-                No aircraft found.
-              </div>
-            ) : null}
-          </section>
-
-          <section className="min-w-0">
-            {!selectedSummary ? (
-              <div className="rounded-lg border border-zinc-200 bg-white p-6 text-sm text-zinc-600">
-                Select an aircraft
-                to view details.
-              </div>
-            ) : detailQuery.isLoading ? (
-              <DetailLoadingCard
-                callSign={
-                  selectedSummary.callSign
-                }
-              />
-            ) : detailQuery.isError ? (
-              <DetailErrorCard
-                callSign={
-                  selectedSummary.callSign
-                }
-                error={
-                  detailQuery.error
-                }
-                onRetry={() =>
-                  detailQuery.refetch()
-                }
-              />
-            ) : selectedAircraft ? (
-              <>
-                {detailQuery.data
-                  ?.warning ? (
-                  <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-                    {
-                      detailQuery
-                        .data
-                        .warning
+        <section className="space-y-2.5">
+          {aircraft.map((item) => (
+            <AircraftRow
+              key={item.id}
+              item={item}
+              expanded={expandedId === item.id}
+              onToggle={() => toggleExpanded(item.id)}
+              detail={
+                expandedId === item.id
+                  ? {
+                      isLoading: detailQuery.isLoading,
+                      isError: detailQuery.isError,
+                      error: detailQuery.error,
+                      onRetry: () => detailQuery.refetch(),
+                      aircraft: selectedAircraft,
+                      warning: detailQuery.data?.warning ?? null,
                     }
-                  </div>
-                ) : null}
+                  : null
+              }
+            />
+          ))}
 
-                <AircraftDetails
-                  aircraft={
-                    selectedAircraft
-                  }
-                />
-              </>
-            ) : (
-              <div className="rounded-lg border border-zinc-200 bg-white p-6 text-sm text-zinc-600">
-                No aircraft detail
-                data was returned.
-              </div>
-            )}
-          </section>
-        </div>
+          {!aircraftQuery.isLoading && !aircraft.length ? (
+            <div className="rounded-xl border border-zinc-200 bg-white p-8 text-center text-sm text-zinc-500">
+              No aircraft found.
+            </div>
+          ) : null}
+        </section>
       </main>
     </>
   );
 }
 
-function DetailLoadingCard({
-  callSign,
-}: {
-  callSign: string;
-}) {
-  return (
-    <div className="rounded-lg border border-zinc-200 bg-white p-6 shadow-sm">
-      <div className="flex items-center gap-3">
-        <RefreshCcw
-          size={18}
-          className="animate-spin text-cyan-700"
-        />
-
-        <div>
-          <p className="font-semibold text-zinc-950">
-            Loading{" "}
-            {callSign}
-          </p>
-
-          <p className="mt-1 text-sm text-zinc-600">
-            Loading service,
-            warnings, logs and
-            maintenance data...
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function DetailErrorCard({
-  callSign,
-  error,
-  onRetry,
-}: {
-  callSign: string;
+type DetailState = {
+  isLoading: boolean;
+  isError: boolean;
   error: unknown;
   onRetry: () => void;
+  aircraft: FlightLoggerAircraft | null;
+  warning: string | null;
+};
+
+function AircraftRow({
+  item,
+  expanded,
+  onToggle,
+  detail,
+}: {
+  item: FlightLoggerAircraft;
+  expanded: boolean;
+  onToggle: () => void;
+  detail: DetailState | null;
 }) {
+  const warning = warningSummary(item);
+
   return (
-    <div className="rounded-lg border border-rose-200 bg-rose-50 p-5">
-      <div className="flex items-start gap-3">
-        <AlertTriangle
-          size={20}
-          className="mt-0.5 shrink-0 text-rose-700"
-        />
-
-        <div className="min-w-0 flex-1">
-          <h3 className="font-bold text-rose-900">
-            Unable to load{" "}
-            {callSign} details
-          </h3>
-
-          <p className="mt-2 break-words text-sm leading-6 text-rose-800">
-            {error instanceof
-            Error
-              ? error.message
-              : "Unable to load aircraft details."}
-          </p>
-
-          <button
-            type="button"
-            className="mt-4 inline-flex h-10 items-center gap-2 rounded-lg border border-rose-300 bg-white px-3 text-sm font-semibold text-rose-800 hover:bg-rose-100"
-            onClick={
-              onRetry
-            }
+    <div
+      className={`overflow-hidden rounded-xl border bg-white shadow-sm transition ${
+        expanded ? "border-cyan-700 ring-2 ring-cyan-700/15" : "border-zinc-200"
+      }`}
+    >
+      <button
+        type="button"
+        className="flex w-full items-center gap-3 px-4 py-3.5 text-left"
+        onClick={onToggle}
+        aria-expanded={expanded}
+      >
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          <div
+            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
+              item.disabled
+                ? "bg-zinc-100 text-zinc-400"
+                : "bg-cyan-50 text-cyan-700"
+            }`}
           >
-            <RefreshCcw
-              size={16}
-            />
-            Retry
-          </button>
+            <Plane size={18} />
+          </div>
+
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="truncate text-base font-bold text-zinc-950">
+                {item.callSign}
+              </p>
+
+              {item.disabled ? (
+                <span className="rounded-md border border-zinc-200 bg-zinc-50 px-1.5 py-0.5 text-[11px] font-semibold text-zinc-500">
+                  Disabled
+                </span>
+              ) : null}
+            </div>
+
+            <p className="truncate text-sm text-zinc-500">
+              {item.model}
+              {item.homeAirport?.name ? ` · ${item.homeAirport.name}` : ""}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex shrink-0 items-center gap-2">
+          {warning ? (
+            <span className="hidden items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-900 sm:inline-flex">
+              <AlertTriangle size={12} />
+              <span className="max-w-[140px] truncate">
+                {warning.subjectName || "Warning"}
+              </span>
+            </span>
+          ) : (
+            <span className="hidden items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-800 sm:inline-flex">
+              <ShieldCheck size={12} />
+              Airworthy
+            </span>
+          )}
+
+          {warning ? (
+            <span className="inline-flex h-2.5 w-2.5 shrink-0 rounded-full bg-amber-500 sm:hidden" />
+          ) : (
+            <span className="inline-flex h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-500 sm:hidden" />
+          )}
+
+          <ChevronDown
+            size={18}
+            className={`shrink-0 text-zinc-400 transition-transform duration-300 ${
+              expanded ? "rotate-180" : ""
+            }`}
+          />
+        </div>
+      </button>
+
+      <div
+        className={`grid transition-all duration-300 ease-out ${
+          expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+        }`}
+      >
+        <div className="overflow-hidden">
+          <div className="border-t border-zinc-100 px-4 pb-4 pt-4">
+            {detail ? <AircraftDetailBody detail={detail} /> : null}
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-function AircraftDetails({
-  aircraft,
-}: {
-  aircraft: FlightLoggerAircraft;
-}) {
+function AircraftDetailBody({ detail }: { detail: DetailState }) {
+  if (detail.isLoading) {
+    return (
+      <div className="flex items-center gap-3 py-2 text-sm text-zinc-600">
+        <RefreshCcw size={16} className="animate-spin text-cyan-700" />
+        Loading aircraft details...
+      </div>
+    );
+  }
+
+  if (detail.isError) {
+    return (
+      <div className="rounded-lg border border-rose-200 bg-rose-50 p-4">
+        <div className="flex items-start gap-3">
+          <AlertTriangle size={18} className="mt-0.5 shrink-0 text-rose-700" />
+
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-rose-900">
+              Unable to load details
+            </p>
+
+            <p className="mt-1 break-words text-sm text-rose-800">
+              {detail.error instanceof Error
+                ? detail.error.message
+                : "Unable to load aircraft details."}
+            </p>
+
+            <button
+              type="button"
+              className="mt-3 inline-flex h-9 items-center gap-2 rounded-lg border border-rose-300 bg-white px-3 text-xs font-semibold text-rose-800 hover:bg-rose-100"
+              onClick={detail.onRetry}
+            >
+              <RefreshCcw size={14} />
+              Retry
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!detail.aircraft) {
+    return null;
+  }
+
+  const aircraft = detail.aircraft;
+  const warning = warningSummary(aircraft);
+  const requiringApproval = aircraft.requiringApprovalMaintenanceParts ?? [];
+  const currentMaintenance = aircraft.currentMaintenanceParts ?? [];
+  const previousMaintenance = aircraft.previousMaintenanceParts ?? [];
+
   return (
     <div className="space-y-4">
-      <section className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-cyan-800">
-              Aircraft details
-            </p>
-
-            <h2 className="mt-1 text-2xl font-bold text-zinc-950">
-              {
-                aircraft.callSign
-              }
-            </h2>
-
-            <p className="text-sm text-zinc-600">
-              {aircraft.model}
-            </p>
-          </div>
-
-          <StatusBadge
-            disabled={
-              aircraft.disabled
-            }
-          />
+      {detail.warning ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          {detail.warning}
         </div>
+      ) : null}
 
-        <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <InfoTile
-            icon={
-              <Gauge
-                size={18}
-              />
-            }
-            label="Timer"
-            value={formatDuration(
-              aircraft.timerSeconds,
-            )}
-          />
+      {warning ? <WarningCard warning={warning} /> : <AirworthyBanner />}
 
-          <InfoTile
-            icon={
-              <Clock3
-                size={18}
-              />
-            }
-            label="Airborne"
-            value={formatMinutes(
-              aircraft.totalAirborneMinutes,
-            )}
-          />
-
-          <InfoTile
-            icon={
-              <Fuel
-                size={18}
-              />
-            }
-            label="Fuel"
-            value={formatNumber(
-              aircraft.totalFuel,
-            )}
-          />
-
-          <InfoTile
-            icon={
-              <MapPin
-                size={18}
-              />
-            }
-            label="Home base"
-            value={
-              aircraft
-                .homeAirport
-                ?.name ?? "-"
-            }
-          />
-        </div>
-      </section>
-
-      <section className="grid gap-4 xl:grid-cols-2">
-        <DetailCard title="Core data">
-          <KeyValue
-            label="ID"
-            value={
-              aircraft.id
-            }
-          />
-
-          <KeyValue
-            label="Class"
-            value={formatEnum(
-              aircraft.aircraftClass,
-            )}
-          />
-
-          <KeyValue
-            label="Type"
-            value={formatEnum(
-              aircraft.aircraftType,
-            )}
-          />
-
-          <KeyValue
-            label="Engine"
-            value={formatEnum(
-              aircraft.defaultEngineType,
-            )}
-          />
-
-          <KeyValue
-            label="Default PMF"
-            value={formatEnum(
-              aircraft.defaultPMF,
-            )}
-          />
-
-          <KeyValue
-            label="Current airport"
-            value={
-              aircraft
-                .currentAirport
-                ?.name ?? "-"
-            }
-          />
-
-          <KeyValue
-            label="Taxi in"
-            value={formatMinutes(
-              aircraft.taxiInTime,
-            )}
-          />
-
-          <KeyValue
-            label="Taxi out"
-            value={formatMinutes(
-              aircraft.taxiOutTime,
-            )}
-          />
-
-          <KeyValue
-            label="Landings"
-            value={formatNumber(
-              aircraft.totalLandings,
-            )}
-          />
-        </DetailCard>
-
-        <DetailCard title="Next service">
-          <KeyValue
-            label="Date"
-            value={formatDate(
-              aircraft
-                .nextService
-                ?.nextServiceDate,
-            )}
-          />
-
-          <KeyValue
-            label="Cycles"
-            value={formatNumber(
-              aircraft
-                .nextService
-                ?.nextServiceCycles,
-            )}
-          />
-
-          <KeyValue
-            label="Primary"
-            value={formatNumber(
-              aircraft
-                .nextService
-                ?.nextPrimaryService,
-            )}
-          />
-
-          <KeyValue
-            label="Secondary"
-            value={formatNumber(
-              aircraft
-                .nextService
-                ?.nextSecondaryService,
-            )}
-          />
-
-          <KeyValue
-            label="Tertiary"
-            value={formatNumber(
-              aircraft
-                .nextService
-                ?.nextTertiaryService,
-            )}
-          />
-
-          <WarningColor
-            label="Date warning"
-            color={
-              aircraft
-                .nextService
-                ?.dateWarningColor
-            }
-          />
-
-          <WarningColor
-            label="Cycles warning"
-            color={
-              aircraft
-                .nextService
-                ?.cyclesWarningColor
-            }
-          />
-        </DetailCard>
-      </section>
-
-      <section className="grid gap-4 xl:grid-cols-2">
-        <WarningCard
-          title="Worst maintenance warning"
-          warning={
-            aircraft.worstMaintenanceWarning
-          }
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+        <InfoTile
+          icon={<Gauge size={17} />}
+          label="Timer"
+          value={formatDuration(aircraft.timerSeconds)}
         />
 
-        <WarningCard
-          title="Worst warning"
-          warning={
-            aircraft.worstWarning
-          }
-        />
-      </section>
-
-      <section className="grid gap-4 xl:grid-cols-3">
-        <LogCard
-          title="Primary log"
-          log={
-            aircraft.primaryLog
-          }
+        <InfoTile
+          icon={<Clock3 size={17} />}
+          label="Airborne"
+          value={formatMinutes(aircraft.totalAirborneMinutes)}
         />
 
-        <LogCard
-          title="Secondary log"
-          log={
-            aircraft.secondaryLog
-          }
+        <InfoTile
+          icon={<Fuel size={17} />}
+          label="Fuel"
+          value={formatNumber(aircraft.totalFuel)}
         />
 
-        <LogCard
-          title="Tertiary log"
-          log={
-            aircraft.tertiaryLog
-          }
+        <InfoTile
+          icon={<MapPin size={17} />}
+          label="Current airport"
+          value={aircraft.currentAirport?.name ?? ""}
         />
-      </section>
+      </div>
 
-      <DetailCard title="Maintenance and discrepancies">
-        <div className="space-y-3">
-          {aircraft.maintenanceParts.map(
-            (part) => (
-              <MaintenanceItem
-                key={
-                  part.id ??
-                  part.name
-                }
-                part={part}
-              />
-            ),
-          )}
+      <div className="grid gap-2 rounded-lg border border-zinc-100 bg-zinc-50 p-3 sm:grid-cols-2">
+        <KeyValue label="Class" value={formatEnum(aircraft.aircraftClass)} />
+        <KeyValue label="Type" value={formatEnum(aircraft.aircraftType)} />
+        <KeyValue label="Home base" value={aircraft.homeAirport?.name ?? ""} />
+        <KeyValue
+          label="Status"
+          value={aircraft.disabled ? "Disabled" : "Active"}
+        />
+      </div>
 
-          {!aircraft
-            .maintenanceParts
-            .length ? (
-            <p className="text-sm text-zinc-600">
-              No maintenance
-              parts or
-              discrepancies were
-              returned by the API.
-            </p>
-          ) : null}
-        </div>
-      </DetailCard>
+      
 
-      <DetailCard title="Raw API data">
-        <pre className="max-h-[420px] overflow-auto rounded-lg bg-zinc-950 p-4 text-xs leading-5 text-zinc-100">
-          {JSON.stringify(
-            aircraft.raw,
-            null,
-            2,
-          )}
-        </pre>
-      </DetailCard>
+      <MaintenanceTable
+        title="Current maintenance parts"
+        parts={currentMaintenance}
+        emptyText="There are no current maintenance parts."
+        showRejectedBy={false}
+        hideWhenEmpty
+      />
+
+      <MaintenanceTable
+        title="Previous maintenance parts"
+        parts={previousMaintenance}
+        emptyText="There are no previous maintenance parts."
+        showRejectedBy
+        hideWhenEmpty
+      />
     </div>
   );
 }
 
-function WarningCard({
-  title,
-  warning,
-}: {
-  title: string;
-  warning?:
-    | FlightLoggerMaintenanceWarning
-    | null;
-}) {
+function AirworthyBanner() {
   return (
-    <DetailCard
-      title={title}
-    >
-      {warning ? (
-        <>
-          <WarningColor
-            label="Color"
-            color={
-              warning.color
-            }
-          />
-
-          <KeyValue
-            label="Subject"
-            value={
-              warning.subjectName ??
-              "-"
-            }
-          />
-
-          <KeyValue
-            label="Status"
-            value={
-              warning.status ??
-              "-"
-            }
-          />
-
-          <KeyValue
-            label="Days left"
-            value={formatNumber(
-              warning.daysLeft,
-            )}
-          />
-
-          <KeyValue
-            label="Cycles left"
-            value={formatNumber(
-              warning.cyclesLeft,
-            )}
-          />
-
-          <KeyValue
-            label="Time left"
-            value={formatNumber(
-              warning.timeLeft,
-            )}
-          />
-
-          <KeyValue
-            label="Expiry date"
-            value={
-              warning.expiryDate ??
-              "-"
-            }
-          />
-
-          <KeyValue
-            label="Serial no."
-            value={
-              warning.serialNumber ??
-              "-"
-            }
-          />
-
-          <KeyValue
-            label="Requirers"
-            value={
-              warning.requirers?.join(
-                ", ",
-              ) ?? "-"
-            }
-          />
-        </>
-      ) : (
-        <p className="text-sm text-zinc-600">
-          No warning returned.
-        </p>
-      )}
-    </DetailCard>
+    <div className="flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
+      <ShieldCheck size={20} className="shrink-0 text-emerald-700" />
+      <p className="text-sm font-semibold text-emerald-900">Airworthy</p>
+    </div>
   );
 }
 
-function MaintenanceItem({
-  part,
-}: {
-  part: FlightLoggerMaintenancePart;
-}) {
+function WarningCard({ warning }: { warning: FlightLoggerMaintenanceWarning }) {
   return (
-    <div className="rounded-lg border border-zinc-200 p-4">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <p className="font-semibold text-zinc-950">
-            {part.name ??
-              "Item"}
+    <section className={`rounded-lg border p-4 ${warningCardClass(warning)}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em]">
+            {warning.status || "Warning"}
           </p>
 
-          <p className="text-xs text-zinc-500">
-            {part
-              .maintenanceType
-              ?.name ??
-              "Maintenance"}
-          </p>
+          <h4 className="mt-1 break-words text-base font-bold">
+            {warning.subjectName || "Maintenance warning"}
+          </h4>
         </div>
 
-        <span className="rounded-lg border border-zinc-200 bg-zinc-50 px-2 py-1 text-xs font-semibold text-zinc-700">
-          {formatEnum(
-            part.status,
-          )}
-        </span>
+        {warning.color ? (
+          <span
+            className="mt-0.5 h-3 w-3 shrink-0 rounded-full border border-black/10"
+            style={{ backgroundColor: warning.color }}
+          />
+        ) : null}
       </div>
 
       <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+        <KeyValue label="Days left" value={formatNumber(warning.daysLeft)} />
         <KeyValue
-          label="Serial no."
-          value={
-            part.serialNumber ??
-            "-"
-          }
+          label="Cycles left"
+          value={formatNumber(warning.cyclesLeft)}
         />
-
-        <KeyValue
-          label="Expiration date"
-          value={formatDate(
-            part.expirationDate,
-          )}
-        />
-
-        <KeyValue
-          label="Expiration cycles"
-          value={formatNumber(
-            part.expirationCycles,
-          )}
-        />
-
-        <KeyValue
-          label="Expiration log"
-          value={formatDuration(
-            part.expirationLogSeconds,
-          )}
-        />
-      </div>
-    </div>
-  );
-}
-
-function LogCard({
-  title,
-  log,
-}: {
-  title: string;
-  log:
-    FlightLoggerAircraft["primaryLog"];
-}) {
-  return (
-    <DetailCard
-      title={title}
-    >
-      {log ? (
-        <>
-          <KeyValue
-            label="Type"
-            value={formatEnum(
-              log.type,
-            )}
-          />
-
-          <KeyValue
-            label="Measurement"
-            value={formatEnum(
-              log.measurementType,
-            )}
-          />
-
-          <KeyValue
-            label="Total"
-            value={formatDuration(
-              log.totalSeconds,
-            )}
-          />
-
-          <KeyValue
-            label="Warning"
-            value={
-              log.durationWarningPercent ===
-                null ||
-              log.durationWarningPercent ===
-                undefined
-                ? "-"
-                : `${log.durationWarningPercent}%`
-            }
-          />
-        </>
-      ) : (
-        <p className="text-sm text-zinc-600">
-          Not configured.
-        </p>
-      )}
-    </DetailCard>
-  );
-}
-
-function DetailCard({
-  title,
-  children,
-}: {
-  title: string;
-  children: ReactNode;
-}) {
-  return (
-    <section className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
-      <h3 className="mb-4 text-sm font-bold uppercase tracking-[0.12em] text-zinc-500">
-        {title}
-      </h3>
-
-      <div className="space-y-2">
-        {children}
+        <KeyValue label="Time left" value={formatNumber(warning.timeLeft)} />
+        <KeyValue label="Expiry date" value={warning.expiryDate ?? ""} />
+        <KeyValue label="Serial no." value={warning.serialNumber ?? ""} />
       </div>
     </section>
+  );
+}
+
+function MaintenanceTable({
+  title,
+  parts,
+  emptyText,
+  showRejectedBy,
+  hideWhenEmpty = false,
+}: {
+  title: string;
+  parts: FlightLoggerMaintenancePart[];
+  emptyText: string;
+  showRejectedBy: boolean;
+  hideWhenEmpty?: boolean;
+}) {
+  if (hideWhenEmpty && !parts.length) {
+    return null;
+  }
+
+  return (
+    <section className="overflow-hidden rounded-lg border border-zinc-200 bg-white">
+      <div className="border-b border-zinc-200 bg-zinc-50 px-4 py-3">
+        <h4 className="text-base font-bold text-zinc-950">{title}</h4>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="min-w-[760px] w-full text-left text-sm">
+          <thead className="bg-white text-zinc-500">
+            <tr className="border-b border-zinc-200">
+              <th className="px-4 py-3 font-semibold">Name</th>
+              <th className="px-4 py-3 font-semibold">Serial #</th>
+              <th className="px-4 py-3 font-semibold">Expiry</th>
+              <th className="px-4 py-3 font-semibold">Uploaded by</th>
+              <th className="px-4 py-3 font-semibold">Approved by</th>
+              {showRejectedBy ? (
+                <th className="px-4 py-3 font-semibold">Rejected by</th>
+              ) : null}
+            </tr>
+          </thead>
+
+          <tbody>
+            {parts.map((part) => (
+              <tr className="border-b border-zinc-100 align-top" key={part.id}>
+                <td className="px-4 py-3">
+                  <div className="font-semibold text-zinc-950">
+                    {part.name || "Maintenance part"}
+                  </div>
+                  {part.maintenanceType?.name ? (
+                    <div className="text-xs text-zinc-500">
+                      {part.maintenanceType.name}
+                    </div>
+                  ) : null}
+                </td>
+                <td className="px-4 py-3 text-zinc-700">
+                  {part.serialNumber || ""}
+                </td>
+                <td className="px-4 py-3 text-zinc-700">
+                  <div>{formatDate(part.expirationDate)}</div>
+                  {formatMaintenanceExpiry(part) ? (
+                    <div className="text-xs text-zinc-500">
+                      {formatMaintenanceExpiry(part)}
+                    </div>
+                  ) : null}
+                </td>
+                <td className="px-4 py-3 text-zinc-700">
+                  <PersonDate
+                    date={part.audit?.createdAt}
+                    person={part.audit?.createdById}
+                  />
+                </td>
+                <td className="px-4 py-3 text-zinc-700">
+                  <PersonDate
+                    date={part.approvedAt}
+                    person={formatUser(part.approvedBy)}
+                  />
+                </td>
+                {showRejectedBy ? (
+                  <td className="px-4 py-3 text-zinc-700">
+                    <PersonDate
+                      date={part.rejectedAt}
+                      person={formatUser(part.rejectedBy)}
+                    />
+                  </td>
+                ) : null}
+              </tr>
+            ))}
+
+            {!parts.length ? (
+              <tr>
+                <td
+                  className="px-4 py-4 text-zinc-600"
+                  colSpan={showRejectedBy ? 6 : 5}
+                >
+                  {emptyText}
+                </td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function PersonDate({
+  date,
+  person,
+}: {
+  date?: string | null;
+  person?: string | null;
+}) {
+  return (
+    <div>
+      <div>{formatDate(date)}</div>
+      {person ? (
+        <div className="text-xs font-semibold text-cyan-700">{person}</div>
+      ) : null}
+    </div>
   );
 }
 
@@ -1072,24 +645,29 @@ function MetricCard({
   icon,
   label,
   value,
+  tone = "neutral",
 }: {
   icon: ReactNode;
   label: string;
   value: string;
+  tone?: "neutral" | "warn" | "ok";
 }) {
-  return (
-    <div className="flex h-11 items-center gap-3 rounded-lg border border-zinc-200 bg-white px-3">
-      <span className="text-cyan-800">
-        {icon}
-      </span>
+  const toneClass =
+    tone === "warn"
+      ? "text-amber-700"
+      : tone === "ok"
+        ? "text-emerald-700"
+        : "text-cyan-800";
 
-      <span className="min-w-0 flex-1 truncate text-xs font-semibold text-zinc-600">
+  return (
+    <div className="flex h-11 items-center gap-2.5 rounded-xl border border-zinc-200 bg-white px-3">
+      <span className={toneClass}>{icon}</span>
+
+      <span className="min-w-0 flex-1 truncate text-xs font-semibold text-zinc-500">
         {label}
       </span>
 
-      <span className="font-mono text-sm font-bold text-zinc-950">
-        {value}
-      </span>
+      <span className="font-mono text-sm font-bold text-zinc-950">{value}</span>
     </div>
   );
 }
@@ -1103,166 +681,149 @@ function InfoTile({
   label: string;
   value: string;
 }) {
-  return (
-    <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3">
-      <div className="mb-2 flex items-center gap-2 text-cyan-800">
-        {icon}
-      </div>
+  if (!hasDisplayValue(value)) {
+    return null;
+  }
 
-      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-zinc-500">
+  return (
+    <div className="rounded-lg border border-zinc-200 bg-white p-3">
+      <div className="mb-1.5 flex items-center gap-2 text-cyan-800">{icon}</div>
+
+      <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-zinc-500">
         {label}
       </p>
 
-      <p className="mt-1 truncate font-mono text-sm font-bold text-zinc-950">
+      <p className="mt-0.5 truncate font-mono text-sm font-bold text-zinc-950">
         {value}
       </p>
     </div>
   );
 }
 
-function KeyValue({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="grid grid-cols-[130px_minmax(0,1fr)] gap-3 text-sm">
-      <span className="text-zinc-500">
-        {label}
-      </span>
+function KeyValue({ label, value }: { label: string; value: string }) {
+  if (!hasDisplayValue(value)) {
+    return null;
+  }
 
-      <span className="min-w-0 break-words font-medium text-zinc-900">
-        {value || "-"}
+  return (
+    <div className="flex items-baseline justify-between gap-3 text-sm">
+      <span className="text-zinc-500">{label}</span>
+
+      <span className="min-w-0 truncate text-right font-medium text-zinc-900">
+        {value}
       </span>
     </div>
   );
 }
 
-function WarningColor({
-  label,
-  color,
-}: {
-  label: string;
-  color?:
-    | string
-    | null;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-3 text-sm">
-      <span className="text-zinc-500">
-        {label}
-      </span>
-
-      <span className="inline-flex items-center gap-2 font-medium text-zinc-900">
-        <span
-          className="h-3 w-3 rounded-full border border-zinc-200"
-          style={{
-            backgroundColor:
-              color ??
-              "#e4e4e7",
-          }}
-        />
-
-        {color ?? "-"}
-      </span>
-    </div>
-  );
+function hasActiveWarning(aircraft: FlightLoggerAircraft) {
+  return Boolean(warningSummary(aircraft));
 }
 
-function StatusBadge({
-  disabled,
-}: {
-  disabled?: boolean;
-}) {
-  return (
-    <span
-      className={`rounded-lg border px-2 py-1 text-xs font-semibold ${
-        disabled
-          ? "border-rose-200 bg-rose-50 text-rose-800"
-          : "border-emerald-200 bg-emerald-50 text-emerald-800"
-      }`}
-    >
-      {disabled
-        ? "Disabled"
-        : "Active"}
-    </span>
-  );
+function warningSummary(aircraft: FlightLoggerAircraft) {
+  return visibleWarning(aircraft.worstMaintenanceWarning);
 }
 
-function formatEnum(
-  value?: string | null,
-) {
-  return value
-    ? value
-        .replace(
-          /_/g,
-          " ",
-        )
-        .toLowerCase()
-    : "-";
-}
+function visibleWarning(warning?: FlightLoggerMaintenanceWarning | null) {
+  if (!warning) {
+    return null;
+  }
 
-function formatNumber(
-  value?: number | null,
-) {
-  return value === null ||
-    value === undefined
-    ? "-"
-    : String(value);
-}
-
-function formatMinutes(
-  value?: number | null,
-) {
-  return value === null ||
-    value === undefined
-    ? "-"
-    : `${value} min`;
-}
-
-function formatDuration(
-  seconds?: number | null,
-) {
   if (
-    seconds === null ||
-    seconds === undefined
+    ![
+      warning.color,
+      warning.status,
+      warning.subjectName,
+      warning.expiryDate,
+      warning.serialNumber,
+    ].some(hasDisplayValue)
   ) {
-    return "-";
+    return null;
   }
 
-  const hours =
-    Math.floor(
-      seconds / 3600,
-    );
-
-  const minutes =
-    Math.round(
-      (seconds % 3600) /
-        60,
-    );
-
-  return `${hours}h ${String(
-    minutes,
-  ).padStart(2, "0")}m`;
+  return warning;
 }
 
-function formatDate(
-  value?: string | null,
-) {
-  if (!value) {
-    return "-";
+function warningCardClass(warning: FlightLoggerMaintenanceWarning) {
+  const value = `${warning.color ?? ""} ${warning.status ?? ""}`.toLowerCase();
+
+  if (/red|expired|critical|danger|overdue/.test(value)) {
+    return "border-rose-200 bg-rose-50 text-rose-950";
   }
 
-  const date =
-    new Date(value);
+  if (/green|ok|valid|airworthy/.test(value)) {
+    return "border-emerald-200 bg-emerald-50 text-emerald-950";
+  }
 
-  return Number.isNaN(
-    date.valueOf(),
-  )
+  return "border-amber-200 bg-amber-50 text-amber-950";
+}
+
+function hasDisplayValue(value: unknown) {
+  return value !== null && value !== undefined && value !== "";
+}
+
+function formatEnum(value?: string | null) {
+  return value ? value.replace(/_/g, " ").toLowerCase() : "";
+}
+
+function formatNumber(value?: number | null) {
+  return value === null || value === undefined ? "" : String(value);
+}
+
+function formatMinutes(value?: number | null) {
+  return value === null || value === undefined ? "" : `${value} min`;
+}
+
+function formatDuration(seconds?: number | null) {
+  if (seconds === null || seconds === undefined) {
+    return "";
+  }
+
+  const hours = Math.floor(seconds / 3600);
+
+  const minutes = Math.round((seconds % 3600) / 60);
+
+  return `${hours}h ${String(minutes).padStart(2, "0")}m`;
+}
+
+function formatDate(value?: string | null) {
+  if (!value) {
+    return "";
+  }
+
+  const date = new Date(value);
+
+  return Number.isNaN(date.valueOf())
     ? value
-    : date.toLocaleDateString(
-        "en-GB",
-      );
+    : date.toLocaleDateString("en-GB");
+}
+
+function formatMaintenanceExpiry(part: FlightLoggerMaintenancePart) {
+  const parts = [
+    part.expirationCycles === null || part.expirationCycles === undefined
+      ? null
+      : `${part.expirationCycles} cycles`,
+    part.expirationLogSeconds === null ||
+    part.expirationLogSeconds === undefined
+      ? null
+      : formatDuration(part.expirationLogSeconds),
+    part.expiresOnLog ? `on ${formatEnum(part.expiresOnLog)}` : null,
+  ].filter(Boolean);
+
+  return parts.length ? parts.join(" · ") : "";
+}
+
+function formatUser(
+  user: FlightLoggerMaintenancePart["approvedBy"],
+): string | null {
+  if (!user) {
+    return null;
+  }
+
+  return (
+    [user.firstName, user.lastName].filter(Boolean).join(" ") ||
+    user.callSign ||
+    user.id ||
+    null
+  );
 }

@@ -16,6 +16,16 @@ export const AIRCRAFT_QUERY = /* GraphQL */ `
           id
           name
         }
+        worstMaintenanceWarning {
+          color
+          status
+          subjectName
+        }
+        worstWarning {
+          color
+          status
+          subjectName
+        }
       }
       pageInfo {
         endCursor
@@ -85,90 +95,6 @@ export const AIRCRAFT_DETAIL_CORE_QUERY = /* GraphQL */ `
           id
           name
         }
-
-        defaultEngineType
-        defaultPMF
-
-        fuelCoefficient
-        fuelCoefficientMeasurement
-        fuelCoefficientUnit
-
-        taxiInTime
-        taxiOutTime
-
-        timerSeconds
-        totalAirborneMinutes
-        totalFuel
-        totalLandings
-
-        typeOfTimer
-        typeOfTimerMeasurement
-
-        primaryLog {
-          id
-          type
-          measurementType
-          totalSeconds
-          durationWarningPercent
-          offsetWarningSecondsStart
-          offsetWarningSecondsEnd
-          actionButtonsIsEnabled
-          prefillIsEnabled
-        }
-
-        secondaryLog {
-          id
-          type
-          measurementType
-          totalSeconds
-          durationWarningPercent
-          offsetWarningSecondsStart
-          offsetWarningSecondsEnd
-          actionButtonsIsEnabled
-          prefillIsEnabled
-        }
-
-        tertiaryLog {
-          id
-          type
-          measurementType
-          totalSeconds
-          durationWarningPercent
-          offsetWarningSecondsStart
-          offsetWarningSecondsEnd
-          actionButtonsIsEnabled
-          prefillIsEnabled
-        }
-      }
-    }
-  }
-`;
-
-/**
- * Service information is intentionally fetched separately.
- */
-export const AIRCRAFT_DETAIL_SERVICE_QUERY = /* GraphQL */ `
-  query AircraftDetailService($callSigns: [String!]) {
-    aircraft(first: 1, callSigns: $callSigns) {
-      nodes {
-        id
-        callSign
-
-        nextService {
-          cyclesWarningColor
-          dateWarningColor
-
-          nextPrimaryService
-          nextSecondaryService
-          nextTertiaryService
-
-          nextServiceCycles
-          nextServiceDate
-
-          primaryWarningColor
-          secondaryWarningColor
-          tertiaryWarningColor
-        }
       }
     }
   }
@@ -186,43 +112,14 @@ export const AIRCRAFT_DETAIL_WARNINGS_QUERY = /* GraphQL */ `
         callSign
 
         worstMaintenanceWarning {
-          id
           color
           cyclesLeft
           daysLeft
-          expiryCycles
           expiryDate
-          expiryTime
-          hasDocument
-          logMeasurementType
-          logType
-          requirers
           serialNumber
           status
           subjectName
           timeLeft
-          typeOfTimer
-          typeOfTimerMeasurement
-        }
-
-        worstWarning {
-          id
-          color
-          cyclesLeft
-          daysLeft
-          expiryCycles
-          expiryDate
-          expiryTime
-          hasDocument
-          logMeasurementType
-          logType
-          requirers
-          serialNumber
-          status
-          subjectName
-          timeLeft
-          typeOfTimer
-          typeOfTimerMeasurement
         }
       }
     }
@@ -239,15 +136,14 @@ export const AIRCRAFT_DETAIL_WARNINGS_QUERY = /* GraphQL */ `
 export const AIRCRAFT_MAINTENANCE_QUERY = /* GraphQL */ `
   query AircraftMaintenance(
     $callSigns: [String!]
+    $maintenanceStatuses: [MaintenancePartStatusEnum!]
     $maintenanceAfter: String
     $maintenanceFirst: Int
   ) {
     aircraft(first: 1, callSigns: $callSigns) {
       nodes {
-        id
-        callSign
-
         maintenanceParts(
+          status: $maintenanceStatuses
           after: $maintenanceAfter
           first: $maintenanceFirst
         ) {
@@ -262,29 +158,46 @@ export const AIRCRAFT_MAINTENANCE_QUERY = /* GraphQL */ `
             expirationLogSeconds
             expiresOnLog
 
+            audit {
+              createdAt
+              createdById
+              updatedAt
+              updatedById
+            }
+
             approvedAt
+
+            approvedBy {
+              id
+              callSign
+              firstName
+              lastName
+            }
+
             rejectedAt
 
-            maintenanceType {
-              name
-              disabled
-              expiresOnCycles
-              expiresOnDate
-              expiresOnLog
-              requireSerialNumber
-              requireUploadOfDocument
-              triggerOnLogTime
-              createdAt
-              updatedAt
+            rejectedBy {
+              id
+              callSign
+              firstName
+              lastName
             }
           }
-
           pageInfo {
             endCursor
             hasNextPage
+            hasPreviousPage
+            startCursor
           }
         }
       }
     }
   }
 `;
+
+/*
+ * FlightLogger schema introspection was run for discrep/squawk/defect/issue/
+ * severity/resolution and returned no public aircraft fields or query fields.
+ * Do not add discrepancy UI unless FlightLogger exposes a documented GraphQL
+ * field for it; scraping trener.flightlogger.net is intentionally avoided.
+ */
