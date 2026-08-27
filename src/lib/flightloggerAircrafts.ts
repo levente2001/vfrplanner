@@ -9,7 +9,7 @@ import type {
 } from "../flightlogger/shared/aircraftTypes";
 
 const DEFAULT_ENDPOINT = "https://api.flightlogger.net/graphql";
-const PAGE_SIZE = 25;
+const PAGE_SIZE = 10;
 const BOOKING_PAGE_SIZE = 40;
 const MAX_PAGES = 50;
 const MIN_PAGE_SIZE = 1;
@@ -125,7 +125,7 @@ async function fetchAllAircraft(
   let hasNextPage = true;
   let page = 0;
 
-  let query = AIRCRAFT_QUERY;
+  let query = BASIC_AIRCRAFT_QUERY;
   let pageSize = PAGE_SIZE;
 
   let partial = false;
