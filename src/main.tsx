@@ -1,27 +1,55 @@
 /* eslint-disable react-refresh/only-export-components */
 import React, { useCallback, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { User } from "firebase/auth";
 import "./styles.css";
 import { AuthPanel } from "../AuthPanel";
+import AircraftsPanel from "@/flightlogger/AircraftsPanel";
+import FlightLoggerPanel from "@/flightlogger/FlightLoggerPanel";
 import { NotamPanel } from "../NotamPanel";
 import { PlannerPanel, type RouteStats } from "../PlannerPanel";
 import { WeatherPanel } from "../WeatherPanel";
 import { WbPanel } from "../WbPanel";
-import { CloudSun, FileWarning, Map, Menu, Scale, X } from "lucide-react";
+import {
+  CalendarDays,
+  CloudSun,
+  FileWarning,
+  Map,
+  Menu,
+  Plane,
+  Scale,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import type { WaypointMeta } from "@/lib/vfr/nav";
 import { registerServiceWorker } from "./registerServiceWorker";
 
-type ViewId = "planner" | "weather" | "notams" | "wb";
+type ViewId =
+  "planner" | "weather" | "notams" | "wb" | "flightlogger" | "aircrafts";
 
 const navItems: Array<{
   id: ViewId;
   href: `#${ViewId}`;
   label: string;
-  icon: typeof Map;
+  icon: LucideIcon;
   isNew?: boolean;
 }> = [
   { id: "planner", href: "#planner", label: "Planner", icon: Map },
+  {
+    id: "flightlogger",
+    href: "#flightlogger",
+    label: "FlightLogger",
+    icon: CalendarDays,
+    isNew: true,
+  },
+  {
+    id: "aircrafts",
+    href: "#aircrafts",
+    label: "Aircrafts",
+    icon: Plane,
+    isNew: true,
+  },
   {
     id: "weather",
     href: "#weather",
@@ -37,6 +65,17 @@ function viewFromHash(hash: string): ViewId {
   const id = hash.replace("#", "");
   return navItems.some((item) => item.id === id) ? (id as ViewId) : "planner";
 }
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60,
+      gcTime: 1000 * 60 * 30,
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 function App() {
   const [stats, setStats] = useState<RouteStats>({
@@ -215,6 +254,12 @@ function App() {
           <div hidden={activeView !== "weather"}>
             <WeatherPanel />
           </div>
+          <div hidden={activeView !== "flightlogger"}>
+            <FlightLoggerPanel user={user} />
+          </div>
+          <div hidden={activeView !== "aircrafts"}>
+            <AircraftsPanel user={user} />
+          </div>
           <div hidden={activeView !== "notams"}>
             <NotamPanel waypoints={routeWaypoints} />
           </div>
@@ -229,7 +274,9 @@ function App() {
 
 createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <App />
+    <QueryClientProvider client={queryClient}>
+      <App />
+    </QueryClientProvider>
   </React.StrictMode>,
 );
 

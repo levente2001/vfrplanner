@@ -287,7 +287,9 @@
   white-space: nowrap;
 }
 
-.llsigwx-card__open {
+.llsigwx-card__open,
+.pdf-chart-viewer__toolbar button,
+.pdf-chart-viewer__toolbar a {
   display: inline-flex;
   min-height: 2.5rem;
   flex: 0 0 auto;
@@ -303,24 +305,119 @@
   font-weight: 700;
 }
 
-.llsigwx-card__open:hover {
+.llsigwx-card__open:hover,
+.pdf-chart-viewer__toolbar button:not(:disabled):hover,
+.pdf-chart-viewer__toolbar a:hover {
   border-color: rgb(14 165 233 / 0.55);
   color: #0369a1;
 }
 
-.llsigwx-card__frame-wrap {
-  height: min(72vh, 820px);
-  min-height: 620px;
-  overflow: hidden;
+.pdf-chart-viewer {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   background: #e2e8f0;
 }
 
-.llsigwx-card__frame {
-  display: block;
-  width: 100%;
-  height: 100%;
-  border: 0;
+.pdf-chart-viewer__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  overflow-x: auto;
+  border-bottom: 1px solid rgb(203 213 225);
   background: #e2e8f0;
+  padding: 0.6rem 0.75rem;
+}
+
+.pdf-chart-viewer__toolbar button,
+.pdf-chart-viewer__toolbar a {
+  min-width: 2.5rem;
+  border-radius: 0.6rem;
+  padding: 0 0.55rem;
+}
+
+.pdf-chart-viewer__toolbar button:disabled {
+  cursor: not-allowed;
+  opacity: 0.38;
+}
+
+.pdf-chart-viewer__page,
+.pdf-chart-viewer__zoom {
+  flex: 0 0 auto;
+  min-width: 3.5rem;
+  color: #334155;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-align: center;
+}
+
+.pdf-chart-viewer__divider {
+  width: 1px;
+  height: 1.8rem;
+  flex: 0 0 auto;
+  background: rgb(148 163 184 / 0.55);
+}
+
+.pdf-chart-viewer__stage {
+  position: relative;
+  display: grid;
+  height: min(72vh, 820px);
+  min-height: 620px;
+  place-items: start center;
+  overflow: auto;
+  background:
+    linear-gradient(45deg, rgb(15 23 42) 25%, transparent 25%),
+    linear-gradient(-45deg, rgb(15 23 42) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgb(15 23 42) 75%),
+    linear-gradient(-45deg, transparent 75%, rgb(15 23 42) 75%);
+  background-color: #020617;
+  background-position:
+    0 0,
+    0 10px,
+    10px -10px,
+    -10px 0;
+  background-size: 20px 20px;
+  padding: 1rem;
+  -webkit-overflow-scrolling: touch;
+}
+
+.pdf-chart-viewer__stage canvas {
+  max-width: none;
+  border-radius: 0.25rem;
+  background: #fff;
+  box-shadow: 0 18px 50px rgb(0 0 0 / 0.35);
+}
+
+.pdf-chart-viewer__status {
+  place-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  border-radius: 0.75rem;
+  background: rgb(15 23 42 / 0.88);
+  padding: 0.9rem 1rem;
+  color: #e2e8f0;
+  font-size: 0.9rem;
+}
+
+.pdf-chart-viewer__status.is-error {
+  border-color: rgb(251 191 36 / 0.35);
+  color: #fde68a;
+}
+
+.pdf-chart-viewer__rendering {
+  position: sticky;
+  top: 1rem;
+  left: 50%;
+  z-index: 2;
+  display: inline-grid;
+  width: 2.5rem;
+  height: 2.5rem;
+  place-items: center;
+  border-radius: 999px;
+  background: rgb(15 23 42 / 0.82);
+  color: #e2e8f0;
 }
 
 @media (max-width: 760px) {
@@ -345,7 +442,9 @@
     -webkit-line-clamp: 2;
   }
 
-  .llsigwx-card__open {
+  .llsigwx-card__open,
+  .pdf-chart-viewer__toolbar button,
+  .pdf-chart-viewer__toolbar a {
     min-width: 2.75rem;
     min-height: 2.75rem;
     border-radius: 0.65rem;
@@ -356,12 +455,119 @@
     display: none;
   }
 
-  .llsigwx-card__frame-wrap {
+  .pdf-chart-viewer__toolbar {
+    gap: 0.1rem;
+    margin: auto;
+  }
+
+  .pdf-chart-viewer__page,
+  .pdf-chart-viewer__zoom {
+    min-width: 3rem;
+    font-size: 0.72rem;
+  }
+
+  .pdf-chart-viewer__stage {
     height: calc(100svh - 12rem);
     min-height: 430px;
     max-height: 720px;
-    overflow: auto;
-    -webkit-overflow-scrolling: touch;
+    align-items: start;
+    justify-items: start;
+    padding: 0.75rem;
+  }
+}
+
+.flightlogger-panel {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid rgb(226 232 240);
+  border-radius: 0.75rem;
+  background: #f7fafc;
+  box-shadow: 0 18px 50px rgb(15 23 42 / 0.08);
+}
+
+.flightlogger-panel button,
+.flightlogger-panel input,
+.flightlogger-panel select {
+  font: inherit;
+}
+
+.flightlogger-panel button:not(:disabled),
+.flightlogger-panel a[href],
+.flightlogger-panel .fc .fc-event,
+.flightlogger-panel .fc .fc-button:not(:disabled),
+.flightlogger-panel .fc .fc-daygrid-day-number,
+.flightlogger-panel .fc .fc-col-header-cell-cushion,
+.flightlogger-panel .fc .fc-list-event {
+  cursor: pointer;
+}
+
+.flightlogger-panel .fc {
+  --fc-border-color: #d8e2ec;
+  --fc-today-bg-color: rgb(20 132 163 / 0.1);
+  --fc-neutral-bg-color: #f5f8fb;
+  --fc-list-event-hover-bg-color: #eef5f8;
+  font-size: 0.86rem;
+}
+
+.flightlogger-panel .fc .fc-toolbar-title {
+  color: #14213d;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.flightlogger-panel .fc .fc-button {
+  border: 1px solid #c8d7e3;
+  border-radius: 0.5rem;
+  background: #fff;
+  box-shadow: none;
+  color: #14213d;
+  padding: 0.35rem 0.55rem;
+  text-transform: none;
+}
+
+.flightlogger-panel .fc .fc-button-primary:not(:disabled).fc-button-active,
+.flightlogger-panel .fc .fc-button-primary:not(:disabled):active,
+.flightlogger-panel .fc .fc-button-primary:hover {
+  border-color: #1484a3;
+  background: #1484a3;
+  color: #fff;
+}
+
+.flightlogger-panel .fc .fc-event {
+  border: 0;
+  border-radius: 0.375rem;
+  padding: 1px 3px;
+}
+
+.flightlogger-panel .fc .fc-daygrid-day-number,
+.flightlogger-panel .fc .fc-col-header-cell-cushion {
+  color: #29405f;
+  text-decoration: none;
+}
+
+.flightlogger-panel .fc .fc-list-event-time,
+.flightlogger-panel .fc .fc-list-event-title {
+  color: #14213d;
+}
+
+@media (max-width: 640px) {
+  .flightlogger-panel {
+    margin-inline: -0.25rem;
+    border-radius: 0.75rem;
+  }
+
+  .flightlogger-panel .fc {
+    font-size: 0.78rem;
+  }
+
+  .flightlogger-panel .fc .fc-toolbar {
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+
+  .flightlogger-panel .fc .fc-toolbar-chunk {
+    display: flex;
+    justify-content: center;
   }
 }
 

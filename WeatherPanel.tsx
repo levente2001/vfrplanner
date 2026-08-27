@@ -6,7 +6,6 @@ import {
   useState,
 } from "react";
 import {
-  ExternalLink,
   FileText,
   Loader2,
   MapPin,
@@ -15,6 +14,7 @@ import {
   Search,
 } from "lucide-react";
 import { Card, CardContent } from "@/ui/card";
+import { PdfChartViewer } from "@/weather/PdfChartViewer";
 
 const DEFAULT_ICAO = "LHDC";
 const DEFAULT_AIRPORT_NAME = "Debrecen International Airport";
@@ -1396,15 +1396,6 @@ export function WeatherPanel() {
               </div>
             </div>
 
-            <footer className="border-t border-slate-200 bg-slate-50 px-4 py-3 text-[11px] leading-5 text-slate-500 sm:px-5">
-              METAR source: NOAA/NWS Aviation Weather Center
-              (aviationweather.gov), requested through the app's server-side
-              /api/metar proxy. If the selected airport is not a METAR station,
-              the proxy selects the nearest current reporting station by
-              geographic distance. Runways and headings are loaded from an
-              OurAirports-based database. Always verify operational information
-              with the applicable official aviation sources.
-            </footer>
           </article>
         </CardContent>
       </Card>
@@ -1418,30 +1409,13 @@ export function WeatherPanel() {
                   <FileText className="size-3.5" />
                   LLSIGWX
                 </p>
-                <h2 className="llsigwx-card__title">
-                  Low-level significant weather chart
-                </h2>
               </div>
-              <a
-                href={LLSIGWX_PDF_PROXY_URL}
-                target="_blank"
-                rel="noreferrer"
-                className="llsigwx-card__open"
-                aria-label="LLSIGWX PDF megnyitása teljes nézetben"
-              >
-                <ExternalLink className="size-4" />
-                <span>Teljes nézet</span>
-              </a>
             </header>
 
-            <div className="llsigwx-card__frame-wrap">
-              <iframe
-                title="LLSIGWX low-level significant weather chart"
-                src={LLSIGWX_PDF_PROXY_URL}
-                className="llsigwx-card__frame"
-                loading="lazy"
-              />
-            </div>
+            <PdfChartViewer
+              src={LLSIGWX_PDF_PROXY_URL}
+              title="LLSIGWX low-level significant weather chart"
+            />
           </article>
         </CardContent>
       </Card>

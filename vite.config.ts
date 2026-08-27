@@ -2,6 +2,9 @@ import { defineConfig, loadEnv, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "node:path";
+import type { ServerResponse } from "node:http";
+import { handleFlightLoggerAircrafts } from "./src/lib/flightloggerAircrafts";
+import { handleFlightLoggerBookings } from "./src/lib/flightloggerBookings";
 import { adaptAviationWeather } from "./src/lib/weather/providers/aviationWeather";
 import { adaptCheckWx } from "./src/lib/weather/providers/checkwx";
 
@@ -43,6 +46,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+async function sendFetchResponse(res: ServerResponse, response: Response) {
+  res.statusCode = response.status;
+  response.headers.forEach((value, key) => res.setHeader(key, value));
+  res.end(Buffer.from(await response.arrayBuffer()));
+}
+
 function weatherApiPlugin(apiKey: string, configuredProvider: string): Plugin {
   const cache = new Map<string, { expiresAt: number; body: string }>();
   let llsigwxCache: {
@@ -56,6 +65,36 @@ function weatherApiPlugin(apiKey: string, configuredProvider: string): Plugin {
   return {
     name: "aviation-weather-api-proxy",
     configureServer(server) {
+      server.middlewares.use("/api/bookings", async (req, res) => {
+        const response = await handleFlightLoggerBookings(
+          new Request(`http://localhost/api/bookings${req.url ?? ""}`, {
+            method: req.method,
+            headers: {
+              authorization: req.headers.authorization ?? "",
+              "x-flightlogger-token": String(
+                req.headers["x-flightlogger-token"] ?? "",
+              ),
+            },
+          }),
+        );
+        await sendFetchResponse(res, response);
+      });
+
+      server.middlewares.use("/api/aircrafts", async (req, res) => {
+        const response = await handleFlightLoggerAircrafts(
+          new Request(`http://localhost/api/aircrafts${req.url ?? ""}`, {
+            method: req.method,
+            headers: {
+              authorization: req.headers.authorization ?? "",
+              "x-flightlogger-token": String(
+                req.headers["x-flightlogger-token"] ?? "",
+              ),
+            },
+          }),
+        );
+        await sendFetchResponse(res, response);
+      });
+
       server.middlewares.use("/api/metar", async (req, res) => {
         const url = new URL(req.url ?? "", "http://localhost");
         const icao = url.searchParams.get("icao")?.toUpperCase() ?? "";

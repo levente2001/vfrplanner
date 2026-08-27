@@ -17,3 +17,21 @@
   to = "/.netlify/functions/metar"
   status = 200
   force = true
+
+[[redirects]]
+  from = "/api/bookings"
+  to = "/.netlify/functions/bookings"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/aircrafts"
+  to = "/.netlify/functions/aircrafts"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/weather/llsigwx.pdf"
+  to = "/.netlify/functions/llsigwx"
+  status = 200
+  force = true
