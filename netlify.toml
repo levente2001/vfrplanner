@@ -31,6 +31,12 @@
   force = true
 
 [[redirects]]
+  from = "/api/aircraft-detail"
+  to = "/.netlify/functions/aircraft-detail"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/api/weather/llsigwx.pdf"
   to = "/.netlify/functions/llsigwx"
   status = 200
