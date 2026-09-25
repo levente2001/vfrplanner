@@ -386,6 +386,14 @@ function frequencyText(freq: AirportFrequency | null) {
   return freq.frequencyMhz.toFixed(3);
 }
 
+function frequencyFromAirspaceName(name: string) {
+  const match = name.match(/\b(1\d{2})[,.](\d{3})\b/);
+  if (!match) return "";
+  const value = Number(match[1] + "." + match[2]);
+  if (!Number.isFinite(value) || value < 118 || value > 137) return "";
+  return value.toFixed(3);
+}
+
 function tafSegmentAt(weather: BriefingWeather | null, at: Date | null) {
   if (!weather?.tafSegments?.length || !at) return null;
   const t = at.getTime();
@@ -973,6 +981,11 @@ export function BriefingPanel({ plan }: Props) {
 
   const depFrequency = preferredFrequency(departureAirport);
   const destFrequency = preferredFrequency(destinationAirport);
+  const nextRouteAirspaceFrequency =
+    airspaces
+      .filter((item) => item.verticalStatus !== "outside")
+      .map((item) => frequencyFromAirspaceName(item.name))
+      .find(Boolean) ?? "";
   const activeNotams = notamsForWindow(notams, plannedDeparture, plannedArrival);
   const automaticThreats = useMemo(() => {
     const threats: string[] = [];
@@ -1096,9 +1109,15 @@ export function BriefingPanel({ plan }: Props) {
         form.cruiseAltitudeFt ||
         (autoCruiseAltitude == null ? "" : String(autoCruiseAltitude)),
       com1Active: form.com1Active || frequencyText(depFrequency),
+      com1Standby:
+        form.com1Standby ||
+        nextRouteAirspaceFrequency ||
+        frequencyText(destFrequency),
       destinationCom:
         form.destinationCom || frequencyText(destFrequency),
-      com2Standby: form.com2Standby || "121.500",
+      com2Active: form.com2Active || "121.500",
+      com2Standby:
+        form.com2Standby || frequencyText(destFrequency),
       squawk: form.squawk || "7000",
       qnh:
         form.qnh ||
@@ -1129,6 +1148,7 @@ export function BriefingPanel({ plan }: Props) {
     autoCruiseAltitude,
     depFrequency,
     destFrequency,
+    nextRouteAirspaceFrequency,
     notamError,
     notamLoading,
     activeNotams,
@@ -1190,6 +1210,7 @@ export function BriefingPanel({ plan }: Props) {
   if (resolvedForm.runwayCondition === "not-set")
     missing.push("runway condition");
   if (!resolvedForm.taxiRoute.trim()) missing.push("taxi route");
+  if (!resolvedForm.com1Active.trim()) missing.push("departure ATS frequency");
   if (!resolvedForm.com1Standby.trim()) missing.push("next/standby ATS frequency");
   if (!resolvedForm.qnh.trim()) missing.push("local QNH");
   if (!resolvedForm.llsigwxSummary.trim()) missing.push("LLSIGWX review");
@@ -1331,12 +1352,22 @@ export function BriefingPanel({ plan }: Props) {
                   onChange={(value) => update("taxiRoute", value)}
                   placeholder="Depends on stand / AFIS instruction"
                 />
-                <Field
-                  label="Next / standby ATS frequency"
-                  value={form.com1Standby}
-                  onChange={(value) => update("com1Standby", value)}
-                  placeholder="Cannot be safely inferred from airport DB alone"
-                />
+                {!resolvedForm.com1Active && (
+                  <Field
+                    label="Departure ATS frequency"
+                    value={form.com1Active}
+                    onChange={(value) => update("com1Active", value)}
+                    placeholder="Enter if airport database has no AFIS/TWR frequency"
+                  />
+                )}
+                {!resolvedForm.com1Standby && (
+                  <Field
+                    label="Next / standby ATS frequency"
+                    value={form.com1Standby}
+                    onChange={(value) => update("com1Standby", value)}
+                    placeholder="Enter if no route-airspace frequency can be derived"
+                  />
+                )}
                 {!resolvedForm.qnh && (
                   <Field
                     label="Local QNH"
@@ -1506,6 +1537,28 @@ export function BriefingPanel({ plan }: Props) {
                     ? (depFrequency.type || "airport") + " database"
                     : undefined
                 }
+              />
+              <AutoRow
+                label="COM1 standby"
+                value={resolvedForm.com1Standby}
+                source={
+                  nextRouteAirspaceFrequency
+                    ? "first route airspace"
+                    : destFrequency
+                      ? "destination fallback"
+                      : undefined
+                }
+              />
+              <AutoRow
+                label="COM2"
+                value={
+                  resolvedForm.com2Active || resolvedForm.com2Standby
+                    ? resolvedForm.com2Active +
+                      " / " +
+                      resolvedForm.com2Standby
+                    : ""
+                }
+                source="guard / destination"
               />
               <AutoRow
                 label="QNH"
