@@ -1065,13 +1065,12 @@ export function BriefingPanel({ plan }: Props) {
 
     return {
       ...form,
-      notamStatus: notamError
-        ? "not-verified"
-        : activeNotams.length
-          ? "checked-relevant"
-          : notamLoading
-            ? "not-verified"
-            : "checked-none",
+      notamStatus:
+        notamError || notamLoading
+          ? "not-verified"
+          : activeNotams.length
+            ? "auto-partial-relevant"
+            : "auto-partial-none",
       notamSummary:
         form.notamSummary || summarizeNotams(activeNotams) || "",
       expectedWeather:
