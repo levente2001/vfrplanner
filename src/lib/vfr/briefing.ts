@@ -74,6 +74,7 @@ export type BriefingForm = {
   notamStatus: NotamVerification;
   notamSummary: string;
   expectedWeather: string;
+  destinationExpectedWeather: string;
   departureIcao: string;
   destinationIcao: string;
   llsigwxSummary: string;
@@ -414,7 +415,14 @@ export function generateRouteSummary(args: {
   lines.push(
     "",
     "Departure weather: " + formatWeatherForSpeech(departureWeather) + ".",
-    "Destination weather: " + formatWeatherForSpeech(destinationWeather) + ".",
+    "Destination weather: " +
+      formatWeatherForSpeech(destinationWeather) +
+      ". Expected at arrival: " +
+      pad(
+        form.destinationExpectedWeather,
+        "[state expected destination weather from the forecast]",
+      ) +
+      ".",
     "LLSIGWX analysis: " + pad(form.llsigwxSummary, "[review and summarise LLSIGWX]") + ".",
     "Cruise wind and temperature forecast: " + pad(form.routeWindTemp, "[route wind and temperature]") + ".",
     "0 degree Celsius level: " + (form.freezingLevelFt.trim() ? form.freezingLevelFt.trim() + " feet" : "[0 degree Celsius level]") + ".",
@@ -455,6 +463,12 @@ export function generateApproachBriefing(args: {
     "Aircraft technical status: " + pad(form.aircraftStatus, "[aircraft technical status]") + ".",
     notamSentence(form),
     "Weather at destination: " + weatherSpeech + ".",
+    "Expected weather at arrival: " +
+      pad(
+        form.destinationExpectedWeather,
+        "[state expected destination weather from the forecast]",
+      ) +
+      ".",
     "",
     "This will be a visual approach at " + airportLabel(destination) + ".",
     "Chart effective date: not applicable for VFR.",
