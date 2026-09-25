@@ -735,6 +735,58 @@ export function BriefingPanel({ plan }: Props) {
                 />
               </div>
 
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Field
+                  label="Cruise wind / temperature"
+                  value={form.routeWindTemp}
+                  onChange={(value) => update("routeWindTemp", value)}
+                  placeholder="e.g. 240/18 kt, +12°C at 4500 ft"
+                />
+                <Field
+                  label="0°C level (ft)"
+                  type="number"
+                  value={form.freezingLevelFt}
+                  onChange={(value) => update("freezingLevelFt", value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="field-label">LLSIGWX big-picture analysis</Label>
+                <Textarea
+                  className="min-h-[70px]"
+                  value={form.llsigwxSummary}
+                  onChange={(event) => update("llsigwxSummary", event.target.value)}
+                  placeholder="Relevant fronts, precipitation, turbulence, visibility or cloud trends."
+                />
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-[180px_minmax(0,1fr)]">
+                <div className="space-y-1.5">
+                  <Label className="field-label">GO / NO-GO</Label>
+                  <Select
+                    value={form.goNoGo}
+                    onValueChange={(value) =>
+                      update("goNoGo", value as BriefingForm["goNoGo"])
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="not-set">Not set</SelectItem>
+                      <SelectItem value="go">GO</SelectItem>
+                      <SelectItem value="no-go">NO-GO</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Field
+                  label="GO / NO-GO reasoning"
+                  value={form.goNoGoReason}
+                  onChange={(value) => update("goNoGoReason", value)}
+                  placeholder="Commercial-style operational reasoning."
+                />
+              </div>
+
               <div className="flex flex-wrap items-center gap-2">
                 <Button
                   variant="outline"
