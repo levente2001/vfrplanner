@@ -53,7 +53,48 @@ async function sendFetchResponse(res: ServerResponse, response: Response) {
   res.end(Buffer.from(await response.arrayBuffer()));
 }
 
-function weatherApiPlugin(apiKey: string, configuredProvider: string): Plugin {
+async function readJsonRequest(req: import("node:http").IncomingMessage) {
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  if (!chunks.length) return {};
+  return JSON.parse(Buffer.concat(chunks).toString("utf8")) as Record<string, unknown>;
+}
+
+function compactSkyLinkNotam(item: Record<string, unknown>) {
+  const raw = typeof item.raw === "string" ? item.raw : "";
+  const body = typeof item.body === "string" ? item.body : raw;
+  return {
+    id:
+      (typeof item.notam_id === "string" && item.notam_id) ||
+      (typeof item.notam_id_domestic === "string" && item.notam_id_domestic) ||
+      "NOTAM",
+    location:
+      typeof item.location === "string" ? item.location : undefined,
+    qCode:
+      typeof item.q_code === "string" ? item.q_code : undefined,
+    scope:
+      typeof item.scope === "string" ? item.scope : undefined,
+    lowerLimit:
+      typeof item.lower_limit === "string" ? item.lower_limit : undefined,
+    upperLimit:
+      typeof item.upper_limit === "string" ? item.upper_limit : undefined,
+    effectiveStart:
+      typeof item.effective === "string" ? item.effective : undefined,
+    effectiveEnd:
+      typeof item.expiration === "string" ? item.expiration : undefined,
+    text: body || raw || "NOTAM",
+    raw,
+    status: typeof item.status === "string" ? item.status : undefined,
+  };
+}
+
+function weatherApiPlugin(
+  apiKey: string,
+  configuredProvider: string,
+  skylinkApiKey: string,
+): Plugin {
   const cache = new Map<string, { expiresAt: number; body: string }>();
   let llsigwxCache: {
     expiresAt: number;
@@ -66,6 +107,100 @@ function weatherApiPlugin(apiKey: string, configuredProvider: string): Plugin {
   return {
     name: "aviation-weather-api-proxy",
     configureServer(server) {
+      server.middlewares.use("/api/notams", async (req, res) => {
+        if (req.method !== "POST") {
+          res.statusCode = 405;
+          res.setHeader("allow", "POST");
+          res.end();
+          return;
+        }
+        if (!skylinkApiKey) {
+          res.statusCode = 503;
+          res.setHeader("content-type", "application/json");
+          res.end(
+            JSON.stringify({
+              error:
+                "Automatic NOTAM provider is not configured. Set SKYLINK_API_KEY once on the server; no per-flight NOTAM paste will be required.",
+            }),
+          );
+          return;
+        }
+        try {
+          const payload = await readJsonRequest(req);
+          const route = Array.isArray(payload.route)
+            ? payload.route.filter(isRecord)
+            : [];
+          const icaos = Array.from(
+            new Set(
+              route
+                .map((item) =>
+                  typeof item.label === "string"
+                    ? item.label.trim().toUpperCase()
+                    : "",
+                )
+                .filter((label) => /^[A-Z]{4}$/.test(label)),
+            ),
+          );
+          if (!icaos.length) {
+            res.statusCode = 400;
+            res.setHeader("content-type", "application/json");
+            res.end(
+              JSON.stringify({
+                error:
+                  "No ICAO-coded aerodrome was found in the route for automatic NOTAM lookup.",
+              }),
+            );
+            return;
+          }
+
+          const responses = await Promise.all(
+            icaos.map(async (icao) => {
+              const response = await fetch(
+                `https://data.skylinkapi.com/v3.1/notams/${icao}?include_future=true`,
+                {
+                  headers: {
+                    "x-api-key": skylinkApiKey,
+                    Accept: "application/json",
+                  },
+                },
+              );
+              if (!response.ok) {
+                throw new Error(
+                  `SkyLink NOTAM ${icao} HTTP ${response.status}`,
+                );
+              }
+              const data = (await response.json()) as Record<string, unknown>;
+              const list = Array.isArray(data.notams)
+                ? data.notams.filter(isRecord)
+                : [];
+              return list.map(compactSkyLinkNotam);
+            }),
+          );
+
+          const body = JSON.stringify({
+            provider: "SkyLink API",
+            coverage:
+              "Aerodrome NOTAMs for ICAO-coded route waypoints. Verify FIR/en-route NOTAM coverage against the official briefing source.",
+            notams: responses.flat(),
+          });
+          res.statusCode = 200;
+          res.setHeader("content-type", "application/json");
+          res.setHeader("cache-control", "private, max-age=120");
+          res.end(body);
+        } catch (error) {
+          res.statusCode = 502;
+          res.setHeader("content-type", "application/json");
+          res.end(
+            JSON.stringify({
+              error:
+                error instanceof Error
+                  ? error.message
+                  : "Automatic NOTAM request failed.",
+            }),
+          );
+        }
+      });
+
       server.middlewares.use("/api/bookings", async (req, res) => {
         const response = await handleFlightLoggerBookings(
           new Request(`http://localhost/api/bookings${req.url ?? ""}`, {
@@ -468,7 +603,11 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [
-      weatherApiPlugin(env.CHECKWX_API_KEY, env.AVIATION_WEATHER_PROVIDER),
+      weatherApiPlugin(
+        env.CHECKWX_API_KEY,
+        env.AVIATION_WEATHER_PROVIDER,
+        env.SKYLINK_API_KEY,
+      ),
       react(),
       tailwindcss(),
     ],
