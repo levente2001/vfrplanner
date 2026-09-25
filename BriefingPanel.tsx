@@ -4,6 +4,7 @@ import {
   CheckCircle2,
   Clipboard,
   CloudSun,
+  ExternalLink,
   FileText,
   Printer,
   RefreshCw,
@@ -1374,17 +1375,42 @@ export function BriefingPanel({ plan }: Props) {
               )}
 
               <div className="space-y-2">
-                <Label className="field-label">
-                  LL SIGWX visual review — only relevant phenomena
-                </Label>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <Label className="field-label">
+                    LL SIGWX visual review — only relevant phenomena
+                  </Label>
+                  <Button asChild size="sm" variant="outline">
+                    <a
+                      href="/api/weather/llsigwx.pdf"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      <ExternalLink className="size-4" />
+                      Open current chart
+                    </a>
+                  </Button>
+                </div>
                 <Textarea
                   className="min-h-[80px]"
                   value={form.llsigwxSummary}
                   onChange={(event) =>
                     update("llsigwxSummary", event.target.value)
                   }
-                  placeholder="The chart is graphical, so this is the one weather item that still needs pilot review."
+                  placeholder="The chart is graphical, so only this visual weather assessment remains manual."
                 />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    update(
+                      "llsigwxSummary",
+                      "No significant LL SIGWX phenomena identified as relevant to the planned route after chart review",
+                    )
+                  }
+                >
+                  Mark reviewed — no relevant phenomena
+                </Button>
               </div>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-[160px_minmax(0,1fr)]">
