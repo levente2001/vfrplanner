@@ -10,14 +10,20 @@ import {
   RefreshCw,
   ShieldAlert,
 } from "lucide-react";
-import { parseNotamBriefing } from "@/lib/notams";
+import {
+  buildNotamRequest,
+  fetchRouteNotams,
+  type NotamItem,
+} from "@/lib/notams";
 import { parseOpenAir } from "@/lib/vfr/airspace";
 import {
   analyzeRouteAirspaces,
   generateApproachBriefing,
   generateDepartureBriefing,
   generateRouteSummary,
+  inferDepartureExitLeg,
   minimumCruiseAltitude,
+  suggestVfrCruiseAltitude,
   type BriefingForm,
   type BriefingWeather,
   type FlightPlanSnapshot,
@@ -64,21 +70,32 @@ type WeatherStationsResponse = {
   stations?: Array<{
     icao?: string;
     rawTaf?: string | null;
+    tafSegments?: BriefingWeather["tafSegments"];
   }>;
 };
 
 type RunwayOption = {
   id: string;
   heading: number;
+  surface?: string;
+  lengthFt?: number | null;
 };
 
 type AirportDbRecord = {
+  elevation_ft?: string | number;
+  freqs?: Array<{
+    type?: string;
+    description?: string;
+    frequency_mhz?: string | number;
+  }>;
   runways?: Array<{
     closed?: string;
     le_ident?: string;
     le_heading_degT?: string;
     he_ident?: string;
     he_heading_degT?: string;
+    surface?: string;
+    length_ft?: string;
   }>;
 };
 
