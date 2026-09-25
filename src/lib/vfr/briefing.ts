@@ -58,6 +58,13 @@ export type BriefingForm = {
   notamStatus: NotamVerification;
   notamSummary: string;
   expectedWeather: string;
+  departureIcao: string;
+  destinationIcao: string;
+  llsigwxSummary: string;
+  routeWindTemp: string;
+  freezingLevelFt: string;
+  goNoGo: "not-set" | "go" | "no-go";
+  goNoGoReason: string;
   departureRunway: string;
   chartNumber: string;
   circuitExit: string;
@@ -68,10 +75,11 @@ export type BriefingForm = {
   com2Active: string;
   com2Standby: string;
   squawk: string;
+  qnh: string;
   taxiRoute: string;
   rotationSpeedKt: string;
   climbSpeedKt: string;
-  runwayCondition: "dry" | "wet" | "other";
+  runwayCondition: "not-set" | "dry" | "wet" | "other";
   runwayConditionOther: string;
   highestObstacleFt: string;
   routeThreats: string;
@@ -181,6 +189,7 @@ function notamSentence(form: BriefingForm) {
 }
 
 function runwayCondition(form: BriefingForm) {
+  if (form.runwayCondition === "not-set") return "[runway condition]";
   return form.runwayCondition === "other"
     ? pad(form.runwayConditionOther, "[runway condition]")
     : form.runwayCondition;
@@ -201,8 +210,11 @@ export function generateDepartureBriefing(args: {
   const { plan, form, weather } = args;
   const departure = plan?.waypoints[0];
   const firstEnroute = plan?.waypoints[1];
-  const qnh =
-    weather?.qnhHpa == null ? "[QNH]" : String(Math.round(weather.qnhHpa));
+  const exactWeatherQnh =
+    weather?.station === weather?.requestedIcao && weather?.qnhHpa != null
+      ? String(Math.round(weather.qnhHpa))
+      : "";
+  const qnh = pad(form.qnh, exactWeatherQnh || "[QNH]");
   const weatherSpeech = formatWeatherForSpeech(weather);
   const expectedWeather = pad(
     form.expectedWeather,
@@ -331,6 +343,10 @@ export function generateRouteSummary(args: {
     "",
     "Departure weather: " + formatWeatherForSpeech(departureWeather) + ".",
     "Destination weather: " + formatWeatherForSpeech(destinationWeather) + ".",
+    "LLSIGWX analysis: " + pad(form.llsigwxSummary, "[review and summarise LLSIGWX]") + ".",
+    "Cruise wind and temperature forecast: " + pad(form.routeWindTemp, "[route wind and temperature]") + ".",
+    "0 degree Celsius level: " + (form.freezingLevelFt.trim() ? form.freezingLevelFt.trim() + " feet" : "[0 degree Celsius level]") + ".",
+    "GO / NO-GO decision: " + (form.goNoGo === "not-set" ? "[GO / NO-GO]" : form.goNoGo.toUpperCase()) + ". Reason: " + pad(form.goNoGoReason, "[sound operational reasoning]") + ".",
     "Route threats and error management: " +
       pad(form.routeThreats, "[terrain, weather, traffic and airspace threats]") +
       ".",
