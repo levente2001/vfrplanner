@@ -80,7 +80,6 @@ export default async function handler(request: Request) {
     const icaos = Array.from(
       new Set(
         route
-          .filter(isRecord)
           .map((item) => textValue(item.label).toUpperCase())
           .filter((label) => /^[A-Z]{4}$/.test(label)),
       ),
