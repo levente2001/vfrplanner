@@ -64,7 +64,9 @@ export type AirspaceBriefingItem = {
 export type NotamVerification =
   | "not-verified"
   | "checked-none"
-  | "checked-relevant";
+  | "checked-relevant"
+  | "auto-partial-none"
+  | "auto-partial-relevant";
 
 export type BriefingForm = {
   aircraftStatus: string;
@@ -197,9 +199,23 @@ function notamSentence(form: BriefingForm) {
     return "Relevant NOTAMs: nothing relevant.";
   }
   if (form.notamStatus === "checked-relevant") {
-    return "Relevant NOTAMs: " + pad(form.notamSummary, "[brief the relevant NOTAMs]") + ".";
+    return (
+      "Relevant NOTAMs: " +
+      pad(form.notamSummary, "[brief the relevant NOTAMs]") +
+      "."
+    );
   }
-  return "NOTAMs have not been verified. Complete the official NOTAM briefing before flight.";
+  if (form.notamStatus === "auto-partial-relevant") {
+    return (
+      "Automatic aerodrome NOTAM check found: " +
+      pad(form.notamSummary, "[relevant aerodrome NOTAMs]") +
+      ". FIR and en-route NOTAM coverage must still be verified in the official briefing."
+    );
+  }
+  if (form.notamStatus === "auto-partial-none") {
+    return "Automatic aerodrome NOTAM check found no relevant items for the ICAO-coded route aerodromes. FIR and en-route NOTAM coverage must still be verified in the official briefing.";
+  }
+  return "NOTAMs have not been fully verified. Complete the official NOTAM briefing before flight.";
 }
 
 function runwayCondition(form: BriefingForm) {
