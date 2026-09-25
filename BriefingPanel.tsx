@@ -1587,6 +1587,25 @@ export function BriefingPanel({ plan }: Props) {
                 source="RWY + first leg"
               />
               <AutoRow
+                label="Destination RWY"
+                value={resolvedForm.destinationRunway}
+                source={
+                  destinationRunwayUsesWind
+                    ? destinationWind.source + " wind"
+                    : "route alignment / light wind"
+                }
+              />
+              <AutoRow
+                label="DEP forecast"
+                value={resolvedForm.expectedWeather}
+                source="TAF at planned time"
+              />
+              <AutoRow
+                label="DEST forecast"
+                value={resolvedForm.destinationExpectedWeather}
+                source="TAF at planned arrival"
+              />
+              <AutoRow
                 label="VAC"
                 value={resolvedForm.chartNumber}
                 source="AIP naming"
