@@ -365,11 +365,6 @@ export function generateRouteSummary(args: {
     "Total distance " + plan.totalDistanceNm.toFixed(1) + " NM.",
     "Estimated en-route time " + timeLabel(plan.totalTimeHours) + ".",
     "Calculated trip fuel " + fuelLabel(plan) + ".",
-    "Planning wind " +
-      Math.round(plan.windDirection).toString().padStart(3, "0") +
-      " degrees " +
-      Math.round(plan.windSpeed) +
-      " knots.",
     "Planned cruising altitude " + pad(form.cruiseAltitudeFt, "[cruise altitude]") + " feet.",
   ];
 
