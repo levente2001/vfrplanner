@@ -617,6 +617,15 @@ export function BriefingPanel({ plan }: Props) {
             {statusBadge(Boolean(destinationIcao), "Destination airport")}
             {statusBadge(Boolean(departureWeather), "Departure weather")}
             {statusBadge(Boolean(destinationWeather), "Destination weather")}
+            {statusBadge(
+              Boolean(
+                form.llsigwxSummary &&
+                  form.routeWindTemp &&
+                  form.freezingLevelFt &&
+                  form.goNoGo !== "not-set",
+              ),
+              "Advanced met",
+            )}
             {statusBadge(Boolean(airspaceText), "Airspace dataset", airspaceError)}
             {statusBadge(form.notamStatus !== "not-verified", "NOTAM verified")}
             {statusBadge(operationalComplete, "Operational data")}
