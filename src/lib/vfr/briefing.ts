@@ -86,7 +86,9 @@ export type BriefingForm = {
 };
 
 function num(value: string) {
-  const parsed = Number(value);
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const parsed = Number(trimmed);
   return Number.isFinite(parsed) ? parsed : null;
 }
 
@@ -520,10 +522,12 @@ export function analyzeRouteAirspaces(
   const refLat =
     waypoints.reduce((sum, waypoint) => sum + waypoint.lat, 0) /
     waypoints.length;
-  const routeSegments = waypoints.slice(0, -1).map((waypoint, index) => [
+  const routeSegments: Array<
+    [[number, number], [number, number]]
+  > = waypoints.slice(0, -1).map((waypoint, index) => [
     toLocalNm(waypoint.lat, waypoint.lon, refLat),
     toLocalNm(waypoints[index + 1]!.lat, waypoints[index + 1]!.lon, refLat),
-  ] as const);
+  ]);
 
   const items: AirspaceBriefingItem[] = [];
   for (const airspace of airspaces) {
