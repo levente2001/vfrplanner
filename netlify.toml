@@ -59,3 +59,10 @@
   to = "/.netlify/functions/rainviewer"
   status = 200
   force = true
+
+
+[[redirects]]
+  from = "/api/notams"
+  to = "/.netlify/functions/notams"
+  status = 200
+  force = true
