@@ -431,20 +431,30 @@ function windAt(weather: BriefingWeather | null, at: Date | null) {
   };
 }
 
-function windRunwaySuggestion(
+function runwaySuggestion(
   runways: RunwayOption[],
-  direction: number | "VRB" | null,
+  wind: {
+    direction: number | "VRB" | null;
+    speedKt: number | null;
+  },
+  routeCourse: number | null | undefined,
 ) {
-  if (!runways.length || direction == null || direction === "VRB") return null;
+  if (!runways.length) return null;
   const paved = runways.filter((runway) =>
     /ASPH|CONC|PAVED|BIT/i.test(runway.surface ?? ""),
   );
   const candidates = paved.length ? paved : runways;
-  return [...candidates].sort(
-    (a, b) =>
-      angleDifference(a.heading, direction) -
-      angleDifference(b.heading, direction),
-  )[0] ?? null;
+  const useWind =
+    typeof wind.direction === "number" && (wind.speedKt ?? 0) >= 3;
+  const target = useWind ? wind.direction : routeCourse;
+  if (target == null || !Number.isFinite(target)) return candidates[0] ?? null;
+  return (
+    [...candidates].sort(
+      (a, b) =>
+        angleDifference(a.heading, target) -
+        angleDifference(b.heading, target),
+    )[0] ?? null
+  );
 }
 
 function weatherForecastSpeech(weather: BriefingWeather | null, at: Date | null) {
@@ -956,13 +966,21 @@ export function BriefingPanel({ plan }: Props) {
 
   const departureWind = windAt(departureWeather, plannedDeparture);
   const destinationWind = windAt(destinationWeather, plannedArrival);
-  const departureRunwaySuggestion = windRunwaySuggestion(
+  const departureRunwayUsesWind =
+    typeof departureWind.direction === "number" &&
+    (departureWind.speedKt ?? 0) >= 3;
+  const destinationRunwayUsesWind =
+    typeof destinationWind.direction === "number" &&
+    (destinationWind.speedKt ?? 0) >= 3;
+  const departureRunwaySuggestion = runwaySuggestion(
     departureAirport?.runways ?? [],
-    departureWind.direction,
+    departureWind,
+    plan?.legs[0]?.trueCourse,
   );
-  const destinationRunwaySuggestion = windRunwaySuggestion(
+  const destinationRunwaySuggestion = runwaySuggestion(
     destinationAirport?.runways ?? [],
-    destinationWind.direction,
+    destinationWind,
+    plan?.legs[plan.legs.length - 1]?.trueCourse,
   );
 
   const resolvedDepartureRunway =
@@ -1517,7 +1535,11 @@ export function BriefingPanel({ plan }: Props) {
               <AutoRow
                 label="Departure RWY"
                 value={resolvedForm.departureRunway}
-                source={departureWind.source + " wind"}
+                source={
+                  departureRunwayUsesWind
+                    ? departureWind.source + " wind"
+                    : "route alignment / light wind"
+                }
               />
               <AutoRow
                 label="Exit leg"
