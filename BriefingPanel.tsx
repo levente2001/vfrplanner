@@ -394,23 +394,20 @@ function frequencyFromAirspaceName(name: string) {
   return value.toFixed(3);
 }
 
-function tafSegmentAt(weather: BriefingWeather | null, at: Date | null) {
-  if (!weather?.tafSegments?.length || !at) return null;
+function tafSegmentsAt(weather: BriefingWeather | null, at: Date | null) {
+  if (!weather?.tafSegments?.length || !at) return [];
   const t = at.getTime();
-  return (
-    weather.tafSegments.find((segment) => {
-      const from = segment.from ? Date.parse(segment.from) : Number.NEGATIVE_INFINITY;
-      const to = segment.to ? Date.parse(segment.to) : Number.POSITIVE_INFINITY;
-      return t >= from && t <= to;
-    }) ??
-    weather.tafSegments
-      .filter((segment) => segment.from)
-      .sort(
-        (a, b) =>
-          Math.abs(Date.parse(a.from!) - t) - Math.abs(Date.parse(b.from!) - t),
-      )[0] ??
-    null
-  );
+  return weather.tafSegments.filter((segment) => {
+    const from = segment.from
+      ? Date.parse(segment.from)
+      : Number.NEGATIVE_INFINITY;
+    const to = segment.to ? Date.parse(segment.to) : Number.POSITIVE_INFINITY;
+    return t >= from && t <= to;
+  });
+}
+
+function tafSegmentAt(weather: BriefingWeather | null, at: Date | null) {
+  return tafSegmentsAt(weather, at)[0] ?? null;
 }
 
 function windAt(weather: BriefingWeather | null, at: Date | null) {
@@ -457,24 +454,21 @@ function runwaySuggestion(
   );
 }
 
-function weatherForecastSpeech(weather: BriefingWeather | null, at: Date | null) {
-  const segment = tafSegmentAt(weather, at);
-  if (!segment) {
-    return weather?.rawTaf
-      ? "TAF is available but no matching decoded segment was found; review the raw TAF"
-      : "no TAF is available for the selected reporting station";
-  }
-
+function describeTafSegment(
+  segment: NonNullable<BriefingWeather["tafSegments"]>[number],
+) {
   const parts: string[] = [];
   const wind = segment.wind;
   if (wind.direction === "VRB") {
     parts.push(
-      "forecast wind variable" +
-        (wind.speedKt == null ? "" : " " + Math.round(wind.speedKt) + " knots"),
+      "wind variable" +
+        (wind.speedKt == null
+          ? ""
+          : " " + Math.round(wind.speedKt) + " knots"),
     );
   } else if (wind.direction != null && wind.speedKt != null) {
     let text =
-      "forecast wind " +
+      "wind " +
       Math.round(wind.direction).toString().padStart(3, "0") +
       " degrees " +
       Math.round(wind.speedKt) +
@@ -503,7 +497,23 @@ function weatherForecastSpeech(weather: BriefingWeather | null, at: Date | null)
         .join(", "),
     );
   }
-  return parts.length ? parts.join(", ") : "no significant TAF items decoded";
+
+  const prefix =
+    segment.type === "BASE"
+      ? "prevailing"
+      : segment.type +
+        (segment.probability == null ? "" : " " + segment.probability + "%");
+  return prefix + ": " + (parts.length ? parts.join(", ") : "no significant change");
+}
+
+function weatherForecastSpeech(weather: BriefingWeather | null, at: Date | null) {
+  const segments = tafSegmentsAt(weather, at);
+  if (!segments.length) {
+    return weather?.rawTaf
+      ? "TAF is available but the planned time is outside the decoded validity segments; review the raw TAF"
+      : "no TAF is available for the selected reporting station";
+  }
+  return segments.slice(0, 3).map(describeTafSegment).join("; ");
 }
 
 function notamTime(value: string | undefined) {
