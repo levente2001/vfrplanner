@@ -386,7 +386,9 @@ export function BriefingPanel({ plan }: Props) {
   );
 
   const departure = plan?.waypoints[0];
-  const destination = plan?.waypoints[plan.waypoints.length - 1];
+  const destination = plan
+    ? plan.waypoints[plan.waypoints.length - 1]
+    : undefined;
   const departureIcao = isIcao(form.departureIcao)
     ? form.departureIcao.toUpperCase()
     : isIcao(departure?.label)
@@ -537,8 +539,9 @@ export function BriefingPanel({ plan }: Props) {
         departureWeather,
         destinationWeather,
         airspaces,
+        airspaceDataLoaded: Boolean(airspaceText),
       }),
-    [plan, form, departureWeather, destinationWeather, airspaces],
+    [plan, form, departureWeather, destinationWeather, airspaces, airspaceText],
   );
   const approachBriefing = useMemo(
     () =>
