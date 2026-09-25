@@ -965,7 +965,7 @@ export function BriefingPanel({ plan }: Props) {
     form.circuitExit ||
     inferDepartureExitLeg(
       selectedDepartureRunway?.heading,
-      plan?.legs[0]?.magneticCourse,
+      plan?.legs[0]?.trueCourse,
     ) ||
     "";
 
