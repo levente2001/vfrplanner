@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "node:path";
 import type { ServerResponse } from "node:http";
+import { handleAirspaceUsePlan } from "./src/lib/airspaceUsePlan";
 import { handleFlightLoggerAircraftDetail } from "./src/lib/flightloggerAircraftDetail";
 import { handleFlightLoggerAircrafts } from "./src/lib/flightloggerAircrafts";
 import { handleFlightLoggerBookings } from "./src/lib/flightloggerBookings";
@@ -105,6 +106,18 @@ function weatherApiPlugin(apiKey: string, configuredProvider: string): Plugin {
               "x-flightlogger-token": String(
                 req.headers["x-flightlogger-token"] ?? "",
               ),
+            },
+          }),
+        );
+        await sendFetchResponse(res, response);
+      });
+
+      server.middlewares.use("/api/airspace-use-plan", async (req, res) => {
+        const response = await handleAirspaceUsePlan(
+          new Request(`http://localhost/api/airspace-use-plan${req.url ?? ""}`, {
+            method: req.method,
+            headers: {
+              accept: req.headers.accept ?? "application/json",
             },
           }),
         );

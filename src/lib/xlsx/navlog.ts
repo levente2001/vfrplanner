@@ -23,6 +23,8 @@ const FIXED_FUEL_USG = {
   extra: 4,
   taxi: 1,
 };
+export const NAVLOG_WAYPOINT_LIMIT = 11;
+export const NAVLOG_LEG_LIMIT = 10;
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
@@ -195,7 +197,7 @@ function setCell(doc: XMLDocument, ref: string, value: string | number | null) {
   cell.appendChild(is);
 }
 
-function minutesToText(hours: number | null) {
+export function navlogMinutesText(hours: number | null) {
   if (hours === null || !Number.isFinite(hours)) return "";
   return `${Math.round(hours * 60)} min`;
 }
@@ -208,15 +210,29 @@ function fuelText(value: number, unitLabel: string) {
   return `${value.toFixed(1)} ${unitLabel}`;
 }
 
+export function navlogFuelSummary(input: Pick<NavlogExportInput, "totalFuel" | "fuelUnit" | "fuelUnitLabel">) {
+  const contingency = input.totalFuel * 0.05;
+  const reserve = usGallonsToExportUnit(FIXED_FUEL_USG.reserve, input.fuelUnit);
+  const extra = usGallonsToExportUnit(FIXED_FUEL_USG.extra, input.fuelUnit);
+  const taxi = usGallonsToExportUnit(FIXED_FUEL_USG.taxi, input.fuelUnit);
+  const block = input.totalFuel + contingency + reserve + extra + taxi;
+
+  return [
+    { label: "trip", value: input.totalFuel, text: fuelText(input.totalFuel, input.fuelUnitLabel) },
+    { label: "cont. 5%", value: contingency, text: fuelText(contingency, input.fuelUnitLabel) },
+    { label: "reserve", value: reserve, text: fuelText(reserve, input.fuelUnitLabel) },
+    { label: "extra", value: extra, text: fuelText(extra, input.fuelUnitLabel) },
+    { label: "taxi", value: taxi, text: fuelText(taxi, input.fuelUnitLabel) },
+    { label: "Block", value: block, text: fuelText(block, input.fuelUnitLabel) },
+  ];
+}
+
 function patchSheetXml(sheetXml: string, input: NavlogExportInput) {
   const doc = new DOMParser().parseFromString(sheetXml, "application/xml");
   const waypointRows = [5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25];
   const legRows = [6, 8, 10, 12, 14, 16, 18, 20, 22, 24];
-  const contingencyFuel = input.totalFuel * 0.05;
-  const reserveFuel = usGallonsToExportUnit(FIXED_FUEL_USG.reserve, input.fuelUnit);
-  const extraFuel = usGallonsToExportUnit(FIXED_FUEL_USG.extra, input.fuelUnit);
-  const taxiFuel = usGallonsToExportUnit(FIXED_FUEL_USG.taxi, input.fuelUnit);
-  const blockFuel = input.totalFuel + contingencyFuel + reserveFuel + extraFuel + taxiFuel;
+  const [tripFuel, contingencyFuel, reserveFuel, extraFuel, taxiFuel, blockFuel] =
+    navlogFuelSummary(input);
 
   for (const row of waypointRows) setCell(doc, `A${row}`, "");
   for (const row of legRows) {
@@ -228,20 +244,20 @@ function patchSheetXml(sheetXml: string, input: NavlogExportInput) {
   });
   input.legs.slice(0, legRows.length).forEach((leg, index) => {
     const row = legRows[index]!;
-    setCell(doc, `F${row}`, minutesToText(leg.ete));
+    setCell(doc, `F${row}`, navlogMinutesText(leg.ete));
     setCell(doc, `G${row}`, Math.round(leg.distance));
     setCell(doc, `I${row}`, Math.round(leg.magneticCourse));
     setCell(doc, `K${row}`, Math.round(leg.trueCourse));
   });
 
-  setCell(doc, "F26", minutesToText(input.totalTime));
+  setCell(doc, "F26", navlogMinutesText(input.totalTime));
   setCell(doc, "G26", Math.round(input.totalDistance));
-  setCell(doc, "J29", fuelText(input.totalFuel, input.fuelUnitLabel));
-  setCell(doc, "J30", fuelText(contingencyFuel, input.fuelUnitLabel));
-  setCell(doc, "J32", fuelText(reserveFuel, input.fuelUnitLabel));
-  setCell(doc, "J33", fuelText(extraFuel, input.fuelUnitLabel));
-  setCell(doc, "J34", fuelText(taxiFuel, input.fuelUnitLabel));
-  setCell(doc, "J35", fuelText(blockFuel, input.fuelUnitLabel));
+  setCell(doc, "J29", tripFuel?.text ?? "");
+  setCell(doc, "J30", contingencyFuel?.text ?? "");
+  setCell(doc, "J32", reserveFuel?.text ?? "");
+  setCell(doc, "J33", extraFuel?.text ?? "");
+  setCell(doc, "J34", taxiFuel?.text ?? "");
+  setCell(doc, "J35", blockFuel?.text ?? "");
 
   return new XMLSerializer().serializeToString(doc);
 }

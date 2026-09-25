@@ -1,3 +1,5 @@
+import { HUNGARIAN_NAVIGATION_WAYPOINT_ROWS } from "./hungarianWaypoints";
+
 export type LatLng = { lat: number; lng: number };
 
 export type Airport = {
@@ -128,24 +130,69 @@ const AIRPORTS: Airport[] = buildAirportList([
   ["LROP", "Bucharest Otopeni", "443416N", "0260506E"],
 ]);
 
+const NAVIGATION_WAYPOINTS = buildNavigationWaypointIndex(
+  HUNGARIAN_NAVIGATION_WAYPOINT_ROWS,
+);
+
 const PLACES = buildPlaceIndex([
-  { label: "Budapest", lat: 47.4979, lon: 19.0402, aliases: ["bp", "liszt ferenc"] },
+  {
+    label: "Budapest",
+    lat: 47.4979,
+    lon: 19.0402,
+    aliases: ["bp", "liszt ferenc"],
+  },
   { label: "Békéscsaba", lat: 46.6736, lon: 21.0877, aliases: ["bekescsaba"] },
+  { label: "Békés", lat: 46.7667, lon: 21.1333, aliases: ["bekes"] },
   { label: "Debrecen", lat: 47.5316, lon: 21.6273 },
-  { label: "Győr", lat: 47.6875, lon: 17.6504, aliases: ["gyor", "per", "pér"] },
-  { label: "Hévíz", lat: 46.7903, lon: 17.1841, aliases: ["heviz", "sarmellek", "sármellék", "balaton"] },
-  { label: "Nyíregyháza", lat: 47.9554, lon: 21.7167, aliases: ["nyiregyhaza"] },
-  { label: "Pécs", lat: 46.0727, lon: 18.2323, aliases: ["pecs", "pogany", "pogány"] },
+  {
+    label: "Győr",
+    lat: 47.6875,
+    lon: 17.6504,
+    aliases: ["gyor", "per", "pér"],
+  },
+  {
+    label: "Hévíz",
+    lat: 46.7903,
+    lon: 17.1841,
+    aliases: ["heviz", "sarmellek", "sármellék", "balaton"],
+  },
+  {
+    label: "Nyíregyháza",
+    lat: 47.9554,
+    lon: 21.7167,
+    aliases: ["nyiregyhaza"],
+  },
+  {
+    label: "Pécs",
+    lat: 46.0727,
+    lon: 18.2323,
+    aliases: ["pecs", "pogany", "pogány"],
+  },
   { label: "Szeged", lat: 46.253, lon: 20.1414 },
   { label: "Kecskemét", lat: 46.9062, lon: 19.6897, aliases: ["kecskemet"] },
   { label: "Miskolc", lat: 48.1035, lon: 20.7784 },
   { label: "Szolnok", lat: 47.1621, lon: 20.1825 },
   { label: "Siófok", lat: 46.9091, lon: 18.0746, aliases: ["siofok"] },
   { label: "Pápa", lat: 47.3301, lon: 17.4674, aliases: ["papa"] },
-  { label: "Fertőszentmiklós", lat: 47.5899, lon: 16.8752, aliases: ["fertoszentmiklos"] },
+  {
+    label: "Fertőszentmiklós",
+    lat: 47.5899,
+    lon: 16.8752,
+    aliases: ["fertoszentmiklos"],
+  },
   { label: "Tököl", lat: 47.3218, lon: 18.9622, aliases: ["tokol"] },
-  { label: "Jakabszállás", lat: 46.7617, lon: 19.6049, aliases: ["jakabszallas"] },
-  { label: "Székesfehérvár", lat: 47.186, lon: 18.4221, aliases: ["szekesfehervar"] },
+  {
+    label: "Jakabszállás",
+    lat: 46.7617,
+    lon: 19.6049,
+    aliases: ["jakabszallas"],
+  },
+  {
+    label: "Székesfehérvár",
+    lat: 47.186,
+    lon: 18.4221,
+    aliases: ["szekesfehervar"],
+  },
   { label: "Tatabánya", lat: 47.5692, lon: 18.4048, aliases: ["tatabanya"] },
   { label: "Veszprém", lat: 47.1028, lon: 17.9093, aliases: ["veszprem"] },
   { label: "Zalaegerszeg", lat: 46.8417, lon: 16.8416 },
@@ -156,30 +203,82 @@ const PLACES = buildPlaceIndex([
   { label: "Szombathely", lat: 47.2307, lon: 16.6218 },
   { label: "Sopron", lat: 47.6817, lon: 16.5845 },
   { label: "Nagykanizsa", lat: 46.459, lon: 16.9897 },
-  { label: "Dunaújváros", lat: 46.9619, lon: 18.9355, aliases: ["dunaujvaros"] },
-  { label: "Hódmezővásárhely", lat: 46.4181, lon: 20.3301, aliases: ["hodmezovasarhely"] },
+  {
+    label: "Dunaújváros",
+    lat: 46.9619,
+    lon: 18.9355,
+    aliases: ["dunaujvaros"],
+  },
+  {
+    label: "Hódmezővásárhely",
+    lat: 46.4181,
+    lon: 20.3301,
+    aliases: ["hodmezovasarhely"],
+  },
   { label: "Szarvas", lat: 46.8667, lon: 20.55 },
   { label: "Orosháza", lat: 46.567, lon: 20.666, aliases: ["oroshaza"] },
-  { label: "Kiskunfélegyháza", lat: 46.7121, lon: 19.8446, aliases: ["kiskunfelegyhaza"] },
+  {
+    label: "Kiskunfélegyháza",
+    lat: 46.7121,
+    lon: 19.8446,
+    aliases: ["kiskunfelegyhaza"],
+  },
   { label: "Kiskunhalas", lat: 46.4319, lon: 19.4875 },
   { label: "Cegléd", lat: 47.1727, lon: 19.7995, aliases: ["cegled"] },
   { label: "Vác", lat: 47.7759, lon: 19.1361, aliases: ["vac"] },
   { label: "Esztergom", lat: 47.7856, lon: 18.7403 },
-  { label: "Mosonmagyaróvár", lat: 47.8679, lon: 17.2699, aliases: ["mosonmagyarovar"] },
-  { label: "Alcsútdoboz", lat: 47.4251, lon: 18.6022, aliases: ["alcsutdoboz"] },
+  {
+    label: "Mosonmagyaróvár",
+    lat: 47.8679,
+    lon: 17.2699,
+    aliases: ["mosonmagyarovar"],
+  },
+  {
+    label: "Alcsútdoboz",
+    lat: 47.4251,
+    lon: 18.6022,
+    aliases: ["alcsutdoboz"],
+  },
+  { label: "Földes", lat: 47.2882, lon: 21.3642, aliases: ["foldes"] },
+  {
+    label: "Kálmánháza",
+    lat: 47.8833,
+    lon: 21.5833,
+    aliases: ["kalmanhaza"],
+  },
+  { label: "Nyíradony", lat: 47.6914, lon: 21.9054, aliases: ["nyiradony"] },
+  { label: "Doboz", lat: 46.7333, lon: 21.25 },
 ]);
 
 export async function loadAirports() {
   return AIRPORTS;
 }
 
-function buildAirportList(rows: Array<[string, string, string, string]>): Airport[] {
+function buildAirportList(
+  rows: Array<[string, string, string, string]>,
+): Airport[] {
   return rows.map(([icao, name, lat, lon]) => ({
     icao,
     name,
     lat: parseDmsCoordinate(lat),
     lon: parseDmsCoordinate(lon),
   }));
+}
+
+function buildNavigationWaypointIndex(
+  rows: typeof HUNGARIAN_NAVIGATION_WAYPOINT_ROWS,
+): Record<string, WaypointMeta> {
+  const index: Record<string, WaypointMeta> = {};
+  for (const [ident, lat, lon, source] of rows) {
+    const key = ident.toUpperCase();
+    index[key] = {
+      label: key,
+      name: `Hungary navigation waypoint (${source})`,
+      lat: parseDmsCoordinate(lat),
+      lon: parseDmsCoordinate(lon),
+    };
+  }
+  return index;
 }
 
 function parseDmsCoordinate(value: string) {
@@ -220,10 +319,27 @@ export async function resolveWaypoints(input: string, airports: Airport[]) {
       continue;
     }
 
+    const exactNavigationWaypoint =
+      token === token.toUpperCase() ? findNavigationWaypoint(token) : undefined;
+    if (exactNavigationWaypoint) {
+      result.push({ ...exactNavigationWaypoint });
+      continue;
+    }
+
     const place = PLACES[normalizeLookupKey(token)];
     if (place) {
       result.push({ ...place });
       continue;
+    }
+
+    const navigationWaypoint = findNavigationWaypoint(token);
+    if (navigationWaypoint) {
+      result.push({ ...navigationWaypoint });
+      continue;
+    }
+
+    if (looksLikeNavigationIdentifier(token)) {
+      throw new Error(`Unknown waypoint: ${token}`);
     }
 
     const geocoded = await geocodeHungarianSettlement(token);
@@ -244,12 +360,24 @@ function tokenizeWaypoints(input: string, airports: Airport[]) {
       const trimmed = segment.trim();
       if (!trimmed) return [];
       if (parseCoordPair(trimmed)) return [trimmed];
-      if (airports.some((ap) => ap.icao === trimmed.toUpperCase())) return [trimmed];
+      if (airports.some((ap) => ap.icao === trimmed.toUpperCase()))
+        return [trimmed];
+      if (trimmed === trimmed.toUpperCase() && findNavigationWaypoint(trimmed))
+        return [trimmed];
       if (PLACES[normalizeLookupKey(trimmed)]) return [trimmed];
+      if (findNavigationWaypoint(trimmed)) return [trimmed];
       return trimmed.split(/\s+/);
     })
     .map((x) => x.trim())
     .filter(Boolean);
+}
+
+function findNavigationWaypoint(value: string) {
+  return NAVIGATION_WAYPOINTS[value.toUpperCase()];
+}
+
+function looksLikeNavigationIdentifier(value: string) {
+  return /^[A-Za-z0-9]{2,5}$/.test(value.trim());
 }
 
 function buildPlaceIndex(
@@ -274,7 +402,9 @@ function normalizeLookupKey(value: string) {
     .replace(/\s+/g, " ");
 }
 
-async function geocodeHungarianSettlement(query: string): Promise<WaypointMeta | null> {
+async function geocodeHungarianSettlement(
+  query: string,
+): Promise<WaypointMeta | null> {
   if (typeof fetch !== "function") return null;
   const key = normalizeLookupKey(query);
   const cached = readGeocodeCache(key);
@@ -284,14 +414,19 @@ async function geocodeHungarianSettlement(query: string): Promise<WaypointMeta |
     format: "jsonv2",
     q: `${query}, Hungary`,
     countrycodes: "hu",
-    limit: "1",
+    limit: "5",
     addressdetails: "1",
+    bounded: "1",
+    viewbox: "16.0,48.7,23.0,45.7",
   });
 
   try {
-    const res = await fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`, {
-      headers: { Accept: "application/json" },
-    });
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?${params.toString()}`,
+      {
+        headers: { Accept: "application/json" },
+      },
+    );
     if (!res.ok) return null;
     const data = (await res.json()) as Array<{
       lat?: string;
@@ -302,7 +437,28 @@ async function geocodeHungarianSettlement(query: string): Promise<WaypointMeta |
       type?: string;
       address?: Record<string, string>;
     }>;
-    const first = data[0];
+    const settlementTypes = new Set([
+      "city",
+      "town",
+      "village",
+      "hamlet",
+      "municipality",
+    ]);
+    const first =
+      data.find((item) => {
+        const addressType = item.addresstype?.toLowerCase();
+        const type = item.type?.toLowerCase();
+        return (
+          (addressType ? settlementTypes.has(addressType) : false) ||
+          (type ? settlementTypes.has(type) : false) ||
+          Boolean(
+            item.address?.city ||
+            item.address?.town ||
+            item.address?.village ||
+            item.address?.municipality,
+          )
+        );
+      }) ?? data[0];
     if (!first?.lat || !first.lon) return null;
     const label =
       first.address?.city ||
@@ -317,7 +473,8 @@ async function geocodeHungarianSettlement(query: string): Promise<WaypointMeta |
       lat: Number(first.lat),
       lon: Number(first.lon),
     };
-    if (!Number.isFinite(waypoint.lat) || !Number.isFinite(waypoint.lon)) return null;
+    if (!Number.isFinite(waypoint.lat) || !Number.isFinite(waypoint.lon))
+      return null;
     writeGeocodeCache(key, waypoint);
     return waypoint;
   } catch {
@@ -325,7 +482,9 @@ async function geocodeHungarianSettlement(query: string): Promise<WaypointMeta |
   }
 }
 
-export async function reverseGeocodeWaypoint(pos: LatLng): Promise<WaypointMeta | null> {
+export async function reverseGeocodeWaypoint(
+  pos: LatLng,
+): Promise<WaypointMeta | null> {
   if (typeof fetch !== "function") return null;
   const key = `reverse.${pos.lat.toFixed(4)},${pos.lng.toFixed(4)}`;
   const cached = readGeocodeCache(key);
@@ -340,9 +499,12 @@ export async function reverseGeocodeWaypoint(pos: LatLng): Promise<WaypointMeta 
   });
 
   try {
-    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?${params.toString()}`, {
-      headers: { Accept: "application/json" },
-    });
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?${params.toString()}`,
+      {
+        headers: { Accept: "application/json" },
+      },
+    );
     if (!res.ok) return null;
     const data = (await res.json()) as {
       display_name?: string;
@@ -376,7 +538,8 @@ function readGeocodeCache(key: string): WaypointMeta | null {
     const raw = localStorage.getItem(`vfrplanner.geocode.${key}`);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as WaypointMeta;
-    if (!Number.isFinite(parsed.lat) || !Number.isFinite(parsed.lon)) return null;
+    if (!Number.isFinite(parsed.lat) || !Number.isFinite(parsed.lon))
+      return null;
     return parsed;
   } catch {
     return null;
@@ -394,7 +557,9 @@ function writeGeocodeCache(key: string, waypoint: WaypointMeta) {
 
 function parseCoordPair(a: string, b?: string) {
   const combined = a.includes(",") ? a : b ? `${a},${b}` : "";
-  const match = combined.match(/^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/);
+  const match = combined.match(
+    /^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/,
+  );
   if (!match) return null;
   const lat = Number(match[1]);
   const lon = Number(match[2]);
@@ -403,25 +568,41 @@ function parseCoordPair(a: string, b?: string) {
   return { lat, lon, usedNext: !a.includes(",") };
 }
 
-export function computeLegs(points: LatLng[], meta: WaypointMeta[], n: NumericPlan) {
+export function computeLegs(
+  points: LatLng[],
+  meta: WaypointMeta[],
+  n: NumericPlan,
+) {
   const legs: Leg[] = [];
   const variation = Math.abs(n.variationValue);
-  const signedVariation = signedMagneticVariation(variation, n.variationDirection);
+  const signedVariation = signedMagneticVariation(
+    variation,
+    n.variationDirection,
+  );
   for (let i = 0; i < points.length - 1; i++) {
     const from = points[i]!;
     const to = points[i + 1]!;
     const trueCourse = bearing(from, to);
     const distance = haversineNm(from, to);
-    const magneticCourse = applyMagneticVariation(trueCourse, variation, n.variationDirection);
+    const magneticCourse = applyMagneticVariation(
+      trueCourse,
+      variation,
+      n.variationDirection,
+    );
 
     // Aviation wind direction is a FROM bearing. WCA is positive when the pilot must steer right.
     const relativeWindAngle = degToRad(n.windDir - trueCourse);
-    const asinArg = clamp((n.windSpeed / n.tas) * Math.sin(relativeWindAngle), -1, 1);
+    const asinArg = clamp(
+      (n.windSpeed / n.tas) * Math.sin(relativeWindAngle),
+      -1,
+      1,
+    );
     const wca = radToDeg(Math.asin(asinArg));
     const trueHeading = normalizeHeading(trueCourse + wca);
     const magneticHeading = normalizeHeading(trueHeading - signedVariation);
     const groundSpeed =
-      n.tas * Math.cos(degToRad(wca)) - n.windSpeed * Math.cos(relativeWindAngle);
+      n.tas * Math.cos(degToRad(wca)) -
+      n.windSpeed * Math.cos(relativeWindAngle);
     const validGs = Number.isFinite(groundSpeed) && groundSpeed > 0;
     const ete = validGs ? distance / groundSpeed : null;
     legs.push({
@@ -439,7 +620,9 @@ export function computeLegs(points: LatLng[], meta: WaypointMeta[], n: NumericPl
       groundSpeed: validGs ? groundSpeed : null,
       fuel: ete === null ? null : ete * n.fuelFlow,
       tas: n.tas,
-      error: validGs ? undefined : "The selected TAS is insufficient for the entered wind conditions.",
+      error: validGs
+        ? undefined
+        : "The selected TAS is insufficient for the entered wind conditions.",
     });
   }
 
@@ -468,8 +651,14 @@ export function signedMagneticVariation(value: number, direction: "E" | "W") {
   return direction === "E" ? magnitude : -magnitude;
 }
 
-export function applyMagneticVariation(trueDirection: number, value: number, direction: "E" | "W") {
-  return normalizeHeading(trueDirection - signedMagneticVariation(value, direction));
+export function applyMagneticVariation(
+  trueDirection: number,
+  value: number,
+  direction: "E" | "W",
+) {
+  return normalizeHeading(
+    trueDirection - signedMagneticVariation(value, direction),
+  );
 }
 
 function haversineNm(a: LatLng, b: LatLng) {
@@ -479,7 +668,8 @@ function haversineNm(a: LatLng, b: LatLng) {
   const lat1 = degToRad(a.lat);
   const lat2 = degToRad(b.lat);
   const h =
-    Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
   return 2 * rNm * Math.asin(Math.min(1, Math.sqrt(h)));
 }
 
@@ -488,7 +678,9 @@ function bearing(a: LatLng, b: LatLng) {
   const lat2 = degToRad(b.lat);
   const dLon = degToRad(b.lng - a.lng);
   const y = Math.sin(dLon) * Math.cos(lat2);
-  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+  const x =
+    Math.cos(lat1) * Math.sin(lat2) -
+    Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
   return normalize360(radToDeg(Math.atan2(y, x)));
 }
 

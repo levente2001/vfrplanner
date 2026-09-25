@@ -1,7 +1,9 @@
+import { responseToEvent } from "./_request";
+
 const LLSIGWX_PDF_URL = "https://www.netbriefing.hu/Kepek/MET/LLSIGWX.pdf";
 const USER_AGENT = "VFRPlanner/1.0 aviation-weather-client";
 
-export default async function handler() {
+export default async function handle() {
   try {
     const response = await fetch(LLSIGWX_PDF_URL, {
       headers: {
@@ -55,4 +57,8 @@ export default async function handler() {
       },
     );
   }
+}
+
+export async function handler() {
+  return responseToEvent(await handle());
 }

@@ -1351,6 +1351,11 @@
   line-height: 1.35;
 }
 
+.asup-map .leaflet-interactive:focus,
+.asup-map .leaflet-interactive:focus-visible {
+  outline: none;
+}
+
 .flight-label {
   color: var(--color-muted-foreground);
   display: block;

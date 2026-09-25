@@ -37,7 +37,25 @@
   force = true
 
 [[redirects]]
+  from = "/api/airspace-use-plan"
+  to = "/.netlify/functions/airspace-use-plan"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/api/weather/llsigwx.pdf"
   to = "/.netlify/functions/llsigwx"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/weather/stations"
+  to = "/.netlify/functions/weather-stations"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/rainviewer"
+  to = "/.netlify/functions/rainviewer"
   status = 200
   force = true

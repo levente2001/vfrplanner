@@ -1,4 +1,12 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Fragment,
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { ArrowDown, ArrowUp, Download, Plane, Minus, Plus } from "lucide-react";
 import type { User } from "firebase/auth";
 import {
@@ -16,10 +24,17 @@ import {
   signed,
   type Airport,
   type LatLng,
+  type Leg,
   type WaypointMeta,
 } from "@/lib/vfr/nav";
 import type { FlightPlanSnapshot } from "@/lib/vfr/briefing";
-import { exportNavlogXlsx } from "@/lib/xlsx/navlog";
+import {
+  exportNavlogXlsx,
+  NAVLOG_LEG_LIMIT,
+  NAVLOG_WAYPOINT_LIMIT,
+  navlogFuelSummary,
+  navlogMinutesText,
+} from "@/lib/xlsx/navlog";
 import { Alert, AlertDescription } from "@/ui/alert";
 import { Badge } from "@/ui/badge";
 import { Button } from "@/ui/button";
@@ -33,6 +48,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/ui/select";
+import { Switch } from "@/ui/switch";
 import {
   Table,
   TableBody,
@@ -88,6 +104,150 @@ function nextMapWaypointLabel(waypoints: WaypointMeta[]) {
   return `WP${index}`;
 }
 
+function TrainerNavlogTable({
+  waypoints,
+  legs,
+  totalDistance,
+  totalTime,
+  totalFuel,
+  fuelUnit,
+}: {
+  waypoints: WaypointMeta[];
+  legs: Leg[];
+  totalDistance: number;
+  totalTime: number;
+  totalFuel: number;
+  fuelUnit: FuelUnit;
+}) {
+  const fuelRows = navlogFuelSummary({
+    totalFuel,
+    fuelUnit,
+    fuelUnitLabel: fuelUnitLabel[fuelUnit],
+  });
+  const displayWaypoints = waypoints.slice(0, NAVLOG_WAYPOINT_LIMIT);
+  const displayLegs = legs.slice(0, NAVLOG_LEG_LIMIT);
+  const isLimited =
+    waypoints.length > NAVLOG_WAYPOINT_LIMIT || legs.length > NAVLOG_LEG_LIMIT;
+
+  return (
+    <div className="space-y-4 p-4">
+      <Table className="min-w-[760px] border border-border text-left">
+        <TableHeader>
+          <TableRow className="border-b border-border bg-panel-muted">
+            {[
+              "Waypoint name",
+              "ATO",
+              "ETO",
+              "Leg time",
+              "Dist. (nm)",
+              "Mag. Track",
+              "True track",
+            ].map((h) => (
+              <TableHead
+                key={h}
+                className="border-r border-border px-3 py-2.5 font-mono text-[10px] font-medium uppercase tracking-wider text-muted-foreground last:border-r-0"
+              >
+                {h}
+              </TableHead>
+            ))}
+          </TableRow>
+        </TableHeader>
+        <TableBody className="font-mono text-xs">
+          {displayWaypoints.map((waypoint, index) => {
+            const leg = displayLegs[index];
+            return (
+              <Fragment key={`${waypoint.label}-${index}`}>
+                <TableRow key={`${waypoint.label}-${index}-waypoint`} className="bg-background">
+                  <TableCell className="border-r border-border px-3 py-2.5 font-semibold">
+                    {waypoint.label}
+                  </TableCell>
+                  <TableCell className="border-r border-border px-3 py-2.5" />
+                  <TableCell className="border-r border-border px-3 py-2.5" />
+                  <TableCell className="border-r border-border px-3 py-2.5" />
+                  <TableCell className="border-r border-border px-3 py-2.5" />
+                  <TableCell className="border-r border-border px-3 py-2.5" />
+                  <TableCell className="px-3 py-2.5" />
+                </TableRow>
+                {leg && (
+                  <TableRow key={`${waypoint.label}-${index}-leg`} className="bg-panel-muted/35">
+                    <TableCell className="border-r border-border px-3 py-2.5 text-muted-foreground">
+                      {leg.from} - {leg.to}
+                    </TableCell>
+                    <TableCell className="border-r border-border px-3 py-2.5" />
+                    <TableCell className="border-r border-border px-3 py-2.5" />
+                    <TableCell className="border-r border-border px-3 py-2.5 text-primary">
+                      {navlogMinutesText(leg.ete) || leg.error || ""}
+                    </TableCell>
+                    <TableCell className="border-r border-border px-3 py-2.5 text-primary">
+                      {Math.round(leg.distance)}
+                    </TableCell>
+                    <TableCell className="border-r border-border px-3 py-2.5 text-primary">
+                      {Math.round(leg.magneticCourse)}°
+                    </TableCell>
+                    <TableCell className="px-3 py-2.5 text-primary">
+                      {Math.round(leg.trueCourse)}°
+                    </TableCell>
+                  </TableRow>
+                )}
+              </Fragment>
+            );
+          })}
+        </TableBody>
+        <TableFooter className="bg-panel-muted font-mono text-xs font-semibold">
+          <TableRow>
+            <TableCell className="border-r border-border px-3 py-2.5">Total:</TableCell>
+            <TableCell className="border-r border-border px-3 py-2.5" />
+            <TableCell className="border-r border-border px-3 py-2.5" />
+            <TableCell className="border-r border-border px-3 py-2.5">
+              {navlogMinutesText(totalTime)}
+            </TableCell>
+            <TableCell className="border-r border-border px-3 py-2.5">
+              {Math.round(totalDistance)}
+            </TableCell>
+            <TableCell className="border-r border-border px-3 py-2.5" />
+            <TableCell className="px-3 py-2.5" />
+          </TableRow>
+        </TableFooter>
+      </Table>
+
+      <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_280px]">
+        <div className="min-h-24 border border-border bg-panel-muted p-3">
+          <p className="field-label mb-2">Remarks</p>
+        </div>
+        <Table className="border border-border text-left">
+          <TableHeader>
+            <TableRow className="bg-panel-muted">
+              <TableHead
+                className="px-3 py-2.5 font-mono text-[10px] font-medium uppercase tracking-wider text-muted-foreground"
+                colSpan={2}
+              >
+                Fuel calculation
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody className="font-mono text-xs">
+            {fuelRows.map((row) => (
+              <TableRow key={row.label}>
+                <TableCell className="border-r border-border px-3 py-2.5 text-muted-foreground">
+                  {row.label}
+                </TableCell>
+                <TableCell className="px-3 py-2.5 text-right font-semibold">{row.text}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+
+      {isLimited && (
+        <p className="text-xs text-muted-foreground">
+          The Excel navlog template displays the first {NAVLOG_LEG_LIMIT} legs and{" "}
+          {NAVLOG_WAYPOINT_LIMIT} waypoints.
+        </p>
+      )}
+    </div>
+  );
+}
+
 export type RouteStats = {
   legs: number;
   ete: string;
@@ -126,6 +286,7 @@ export function PlannerPanel({
   const [savedPlans, setSavedPlans] = useState<SavedFlightPlan[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState("");
   const [planName, setPlanName] = useState("Local flight");
+  const [showTrainerNavlog, setShowTrainerNavlog] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -377,6 +538,7 @@ export function PlannerPanel({
       setWaypoints(combinedWaypoints);
       setFitKey((k) => k + 1);
     } catch (e) {
+      setWaypoints((current) => current.filter((wp) => wp.source === "map"));
       setError(e instanceof Error ? e.message : "Route calculation failed.");
     }
   }
@@ -529,13 +691,37 @@ export function PlannerPanel({
         </Card>
 
         <Card className="overflow-hidden">
-          <CardHeader className="border-b border-border bg-panel-muted px-4 py-2.5">
+          <CardHeader className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border bg-panel-muted px-4 py-2.5">
             <CardTitle className="panel-heading">Leg breakdown</CardTitle>
+            {result.legs.length > 0 && (
+              <Label
+                htmlFor="trainer-navlog"
+                className="flex shrink-0 items-center gap-2 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground"
+              >
+                Standard
+                <Switch
+                  id="trainer-navlog"
+                  checked={showTrainerNavlog}
+                  onCheckedChange={setShowTrainerNavlog}
+                  aria-label="Show trainer navlog view"
+                />
+                Trener
+              </Label>
+            )}
           </CardHeader>
           {result.legs.length === 0 ? (
             <p className="px-4 py-6 text-sm text-muted-foreground">
               Set at least two waypoints, then calculate the route.
             </p>
+          ) : showTrainerNavlog ? (
+            <TrainerNavlogTable
+              waypoints={waypoints}
+              legs={result.legs}
+              totalDistance={result.totalDistance}
+              totalTime={result.totalTime}
+              totalFuel={result.totalFuel}
+              fuelUnit={fuelUnit}
+            />
           ) : (
             <Table className="text-left">
               <TableHeader>

@@ -4,6 +4,8 @@
  * can also be adapted easily to other serverless/edge runtimes.
  */
 
+import { requestFromEvent, responseToEvent } from "./_request";
+
 const AWC_METAR_URL = "https://aviationweather.gov/api/data/metar";
 const STATION_COORDS_URL =
   "https://raw.githubusercontent.com/wiedehopf/tar1090-db/master/airport-coords.json";
@@ -29,7 +31,10 @@ function json(body: unknown, status = 200) {
     status,
     headers: {
       "Content-Type": "application/json; charset=utf-8",
-      "Cache-Control": status === 200 ? "public, s-maxage=60, stale-while-revalidate=120" : "no-store",
+      "Cache-Control":
+        status === 200
+          ? "public, s-maxage=60, stale-while-revalidate=120"
+          : "no-store",
     },
   });
 }
@@ -64,13 +69,17 @@ function observationEpoch(item: AwcMetar) {
 }
 
 function latestObservation(items: AwcMetar[]) {
-  return [...items]
-    .filter((item) => item.rawOb && item.icaoId)
-    .sort((a, b) => observationEpoch(b) - observationEpoch(a))[0] ?? null;
+  return (
+    [...items]
+      .filter((item) => item.rawOb && item.icaoId)
+      .sort((a, b) => observationEpoch(b) - observationEpoch(a))[0] ?? null
+  );
 }
 
 async function fetchAwcMetars(ids: string[]) {
-  const cleanIds = [...new Set(ids.map((id) => id.trim().toUpperCase()).filter(Boolean))];
+  const cleanIds = [
+    ...new Set(ids.map((id) => id.trim().toUpperCase()).filter(Boolean)),
+  ];
   if (!cleanIds.length) return [] as AwcMetar[];
 
   const url = new URL(AWC_METAR_URL);
@@ -88,7 +97,9 @@ async function fetchAwcMetars(ids: string[]) {
   if (response.status === 204) return [] as AwcMetar[];
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
-    throw new Error(`Aviation Weather Center HTTP ${response.status}${detail ? `: ${detail.slice(0, 160)}` : ""}`);
+    throw new Error(
+      `Aviation Weather Center HTTP ${response.status}${detail ? `: ${detail.slice(0, 160)}` : ""}`,
+    );
   }
 
   const data = (await response.json()) as unknown;
@@ -101,7 +112,8 @@ async function fetchStationCoords() {
       headers: { Accept: "application/json" },
       cache: "force-cache",
     }).then(async (response) => {
-      if (!response.ok) throw new Error(`Station coordinate HTTP ${response.status}`);
+      if (!response.ok)
+        throw new Error(`Station coordinate HTTP ${response.status}`);
       return (await response.json()) as StationCoords;
     });
   }
@@ -110,11 +122,12 @@ async function fetchStationCoords() {
 
 function chunk<T>(items: T[], size: number) {
   const result: T[][] = [];
-  for (let i = 0; i < items.length; i += size) result.push(items.slice(i, i + size));
+  for (let i = 0; i < items.length; i += size)
+    result.push(items.slice(i, i + size));
   return result;
 }
 
-export default async function handler(request: Request) {
+export default async function handle(request: Request) {
   try {
     const url = new URL(request.url);
     const icao = (url.searchParams.get("icao") ?? "").trim().toUpperCase();
@@ -140,7 +153,9 @@ export default async function handler(request: Request) {
 
     if (!airportPosition) {
       return json(
-        { error: `No current METAR is available for ${icao}, and airport coordinates were not supplied for a nearest-station search.` },
+        {
+          error: `No current METAR is available for ${icao}, and airport coordinates were not supplied for a nearest-station search.`,
+        },
         404,
       );
     }
@@ -149,12 +164,19 @@ export default async function handler(request: Request) {
     // The actual weather values still come exclusively from AviationWeather.gov.
     const stationCoords = await fetchStationCoords();
     const nearbyStations = Object.entries(stationCoords)
-      .filter(([id, coords]) => /^[A-Z0-9]{4}$/.test(id) && Array.isArray(coords) && coords.length >= 2)
+      .filter(
+        ([id, coords]) =>
+          /^[A-Z0-9]{4}$/.test(id) &&
+          Array.isArray(coords) &&
+          coords.length >= 2,
+      )
       .map(([id, coords]) => ({
         id,
         point: { lat: Number(coords[0]), lon: Number(coords[1]) },
       }))
-      .filter(({ point }) => Number.isFinite(point.lat) && Number.isFinite(point.lon))
+      .filter(
+        ({ point }) => Number.isFinite(point.lat) && Number.isFinite(point.lon),
+      )
       .map((station) => ({
         ...station,
         distance: distanceNm(airportPosition, station.point),
@@ -169,18 +191,27 @@ export default async function handler(request: Request) {
       const data = await fetchAwcMetars(batch.map((station) => station.id));
       if (!data.length) continue;
 
-      const distances = new Map(batch.map((station) => [station.id, station.distance]));
+      const distances = new Map(
+        batch.map((station) => [station.id, station.distance]),
+      );
       const candidates = data
         .filter((item) => item.rawOb && item.icaoId)
         .map((item) => {
           const stationId = item.icaoId!.toUpperCase();
           let distance = distances.get(stationId) ?? Number.POSITIVE_INFINITY;
           if (typeof item.lat === "number" && typeof item.lon === "number") {
-            distance = distanceNm(airportPosition, { lat: item.lat, lon: item.lon });
+            distance = distanceNm(airportPosition, {
+              lat: item.lat,
+              lon: item.lon,
+            });
           }
           return { item, distance };
         })
-        .sort((a, b) => a.distance - b.distance || observationEpoch(b.item) - observationEpoch(a.item));
+        .sort(
+          (a, b) =>
+            a.distance - b.distance ||
+            observationEpoch(b.item) - observationEpoch(a.item),
+        );
 
       const nearest = candidates[0];
       if (nearest) {
@@ -193,11 +224,23 @@ export default async function handler(request: Request) {
       }
     }
 
-    return json({ error: `No current METAR reporting station was found near ${icao}.` }, 404);
+    return json(
+      { error: `No current METAR reporting station was found near ${icao}.` },
+      404,
+    );
   } catch (error) {
     return json(
-      { error: error instanceof Error ? error.message : "Unable to load Aviation Weather Center METAR data." },
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unable to load Aviation Weather Center METAR data.",
+      },
       502,
     );
   }
+}
+
+export async function handler(event: Parameters<typeof requestFromEvent>[0]) {
+  return responseToEvent(await handle(requestFromEvent(event, "/api/metar")));
 }

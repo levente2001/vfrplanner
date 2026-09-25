@@ -190,6 +190,41 @@ assert.equal(
   (await resolveWaypoints("alcsutdoboz LHBS", airports))[0]!.label,
   "Alcsútdoboz",
 );
+assert.equal((await resolveWaypoints("Békés", airports))[0]!.label, "Békés");
+assert.equal((await resolveWaypoints("bekes", airports))[0]!.label, "Békés");
+assert.equal((await resolveWaypoints("Földes", airports))[0]!.label, "Földes");
+assert.equal(
+  (await resolveWaypoints("Kálmánháza", airports))[0]!.label,
+  "Kálmánháza",
+);
+assert.equal(
+  (await resolveWaypoints("Nyíradony", airports))[0]!.label,
+  "Nyíradony",
+);
+assert.equal((await resolveWaypoints("Doboz", airports))[0]!.label, "Doboz");
+const hungarianNavWaypoints = await resolveWaypoints("JOZA PERIT", airports);
+assert.equal(hungarianNavWaypoints[0]!.label, "JOZA");
+assert.equal(hungarianNavWaypoints[1]!.label, "PERIT");
+close(hungarianNavWaypoints[0]!.lat, 47.5925, 0.0001);
+close(hungarianNavWaypoints[0]!.lon, 21.5572, 0.0001);
+close(hungarianNavWaypoints[1]!.lat, 47.7883, 0.0001);
+close(hungarianNavWaypoints[1]!.lon, 21.6228, 0.0001);
+assert.equal(
+  (await resolveWaypoints("joza; perit", airports))[1]!.label,
+  "PERIT",
+);
+const bekesNavaids = await resolveWaypoints("bks BC", airports);
+assert.equal(bekesNavaids[0]!.label, "BKS");
+assert.equal(bekesNavaids[1]!.label, "BC");
+close(bekesNavaids[0]!.lat, 46.799972, 0.000001);
+close(bekesNavaids[0]!.lon, 21.073889, 0.000001);
+close(bekesNavaids[1]!.lat, 46.664889, 0.000001);
+close(bekesNavaids[1]!.lon, 21.165083, 0.000001);
+assert.equal((await resolveWaypoints("balaton", airports))[0]!.label, "Hévíz");
+assert.equal(
+  (await resolveWaypoints("BALATON", airports))[0]!.label,
+  "BALATON",
+);
 
 assert.equal(
   determineCeilingFt([
