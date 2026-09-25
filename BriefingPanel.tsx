@@ -125,6 +125,7 @@ const DEFAULT_FORM: BriefingForm = {
   notamStatus: "not-verified",
   notamSummary: "",
   expectedWeather: "",
+  destinationExpectedWeather: "",
   departureIcao: "",
   destinationIcao: "",
   llsigwxSummary: "",
@@ -1067,15 +1068,20 @@ export function BriefingPanel({ plan }: Props) {
     return {
       ...form,
       notamStatus:
-        notamError || notamLoading
+        !plannedDeparture || notamError || notamLoading
           ? "not-verified"
           : activeNotams.length
             ? "auto-partial-relevant"
             : "auto-partial-none",
       notamSummary:
-        form.notamSummary || summarizeNotams(activeNotams) || "",
+        form.notamSummary ||
+        (plannedDeparture ? summarizeNotams(activeNotams) : "") ||
+        "",
       expectedWeather:
         form.expectedWeather || expectedWeather,
+      destinationExpectedWeather:
+        form.destinationExpectedWeather ||
+        weatherForecastSpeech(destinationWeather, plannedArrival),
       chartNumber:
         form.chartNumber ||
         (departureIcao ? "AD 2-" + departureIcao + "-VAC" : ""),
@@ -1111,7 +1117,9 @@ export function BriefingPanel({ plan }: Props) {
   }, [
     form,
     departureWeather,
+    destinationWeather,
     plannedDeparture,
+    plannedArrival,
     routeModel,
     departureIcao,
     destinationIcao,
