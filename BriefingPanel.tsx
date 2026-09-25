@@ -850,6 +850,12 @@ export function BriefingPanel({ plan }: Props) {
                 <Field label="COM2 active" value={form.com2Active} onChange={(value) => update("com2Active", value)} />
                 <Field label="COM2 standby" value={form.com2Standby} onChange={(value) => update("com2Standby", value)} />
                 <Field label="Squawk" value={form.squawk} onChange={(value) => update("squawk", value)} />
+                <Field
+                  label="QNH to set / cross-check"
+                  value={form.qnh}
+                  onChange={(value) => update("qnh", value)}
+                  placeholder="Use local/cleared QNH"
+                />
                 <Field label="Expected taxi routing" value={form.taxiRoute} onChange={(value) => update("taxiRoute", value)} />
                 <Field label="Rotation speed Vr (kt)" type="number" value={form.rotationSpeedKt} onChange={(value) => update("rotationSpeedKt", value)} />
                 <Field label="Climb speed (kt)" type="number" value={form.climbSpeedKt} onChange={(value) => update("climbSpeedKt", value)} />
@@ -880,6 +886,7 @@ export function BriefingPanel({ plan }: Props) {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="not-set">Not set</SelectItem>
                       <SelectItem value="dry">Dry</SelectItem>
                       <SelectItem value="wet">Wet</SelectItem>
                       <SelectItem value="other">Other</SelectItem>
