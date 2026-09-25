@@ -482,8 +482,8 @@ function pointInPolygon(
   polygon: Array<[number, number]>,
 ) {
   let inside = false;
-  const x = point[0];
-  const y = point[1];
+  const x = point[1];
+  const y = point[0];
   for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
     const xi = polygon[i]![1];
     const yi = polygon[i]![0];
@@ -531,13 +531,6 @@ export function analyzeRouteAirspaces(
     let minDistance = Number.POSITIVE_INFINITY;
 
     for (const [routeA, routeB] of routeSegments) {
-      const routeMidLatLon: [number, number] = [
-        (routeA[1] + routeB[1]) / 2 / 60,
-        0,
-      ];
-      void routeMidLatLon;
-      const legStartIndex = routeSegments.indexOf([routeA, routeB] as never);
-      void legStartIndex;
       for (let i = 0; i < airspace.points.length; i++) {
         const p1 = airspace.points[i]!;
         const p2 = airspace.points[(i + 1) % airspace.points.length]!;
