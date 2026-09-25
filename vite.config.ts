@@ -77,7 +77,9 @@ function weatherApiPlugin(
         for await (const chunk of req) {
           chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
         }
-        const body = chunks.length ? Buffer.concat(chunks) : undefined;
+        const body = chunks.length
+          ? Buffer.concat(chunks).toString("utf8")
+          : undefined;
         const response = await handleRouteNotams(
           new Request(`http://localhost/api/notams${req.url ?? ""}`, {
             method: req.method,
