@@ -25,6 +25,20 @@ export type BriefingWeather = {
   distanceNm: number | null;
   rawMetar: string;
   rawTaf?: string | null;
+  tafSegments?: Array<{
+    type: string;
+    from: string | null;
+    to: string | null;
+    wind: {
+      direction: number | "VRB" | null;
+      speedKt: number | null;
+      gustKt: number | null;
+    };
+    visibilitySm: number | null;
+    visibilityText: string;
+    weather: string | null;
+    clouds: Array<{ cover: string; baseFt: number | null }>;
+  }>;
   windDirection: number | "VRB" | null;
   windSpeedKt: number | null;
   windGustKt: number | null;
@@ -202,6 +216,32 @@ export function minimumCruiseAltitude(highestObstacleFt: string) {
   return Math.ceil((obstacle + margin) / 100) * 100;
 }
 
+export function suggestVfrCruiseAltitude(magneticCourse: number | null | undefined) {
+  if (magneticCourse == null || !Number.isFinite(magneticCourse)) return null;
+  const normalized = ((magneticCourse % 360) + 360) % 360;
+  return normalized < 180 ? 3500 : 4500;
+}
+
+export function inferDepartureExitLeg(
+  runwayHeading: number | null | undefined,
+  outboundMagneticCourse: number | null | undefined,
+) {
+  if (
+    runwayHeading == null ||
+    outboundMagneticCourse == null ||
+    !Number.isFinite(runwayHeading) ||
+    !Number.isFinite(outboundMagneticCourse)
+  ) {
+    return null;
+  }
+  const relative =
+    ((outboundMagneticCourse - runwayHeading + 540) % 360) - 180;
+  const absolute = Math.abs(relative);
+  if (absolute <= 45) return "upwind leg";
+  if (absolute >= 135) return "downwind leg";
+  return "crosswind leg";
+}
+
 export function generateDepartureBriefing(args: {
   plan: FlightPlanSnapshot | null;
   form: BriefingForm;
@@ -237,11 +277,15 @@ export function generateDepartureBriefing(args: {
       " proceed to " +
       (firstEnroute?.label ?? "[first waypoint]") +
       ".",
-    "Initially climb to " +
-      pad(form.initialAltitudeFt, "[initial altitude]") +
-      " feet, then continue to " +
-      pad(form.cruiseAltitudeFt, "[cruise altitude]") +
-      " feet.",
+    form.initialAltitudeFt.trim()
+      ? "Initially climb to " +
+        form.initialAltitudeFt.trim() +
+        " feet, then continue to " +
+        pad(form.cruiseAltitudeFt, "[cruise altitude]") +
+        " feet."
+      : "Continue climb to the planned cruising altitude of " +
+        pad(form.cruiseAltitudeFt, "[cruise altitude]") +
+        " feet.",
     "Minimum safe altitude: not applicable for the VFR departure briefing.",
     "",
     "COM 1 active " +
