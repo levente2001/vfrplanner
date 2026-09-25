@@ -20,6 +20,10 @@ import {
 } from "../src/lib/vfr/wb";
 import { parseOpenAir } from "../src/lib/vfr/airspace";
 import {
+  analyzeRouteAirspaces,
+  minimumCruiseAltitude,
+} from "../src/lib/vfr/briefing";
+import {
   calculateFlightCategory,
   determineCeilingFt,
   isStale,
@@ -137,6 +141,38 @@ assert.equal(airspaces.length, 1);
 assert.equal(airspaces[0]!.name, "TEST CTR");
 assert.equal(airspaces[0]!.points[0]![0], 47);
 assert.equal(airspaces[0]!.points[0]![1], 19);
+
+assert.equal(minimumCruiseAltitude("1840"), 2900);
+assert.equal(minimumCruiseAltitude("6000"), 8000);
+assert.equal(minimumCruiseAltitude(""), null);
+
+const briefingRoute: WaypointMeta[] = [
+  { label: "A", lat: 47.05, lon: 18.9 },
+  { label: "B", lat: 47.05, lon: 19.2 },
+];
+const briefingAirspace = {
+  name: "TEST TMA",
+  classCode: "C",
+  type: "TMA",
+  lowerLimit: "1000 FT AMSL",
+  upperLimit: "2500 FT AMSL",
+  points: [
+    [47, 19],
+    [47, 19.1],
+    [47.1, 19.1],
+    [47.1, 19],
+  ] as Array<[number, number]>,
+};
+assert.equal(
+  analyzeRouteAirspaces(briefingRoute, [briefingAirspace], 5, 1500)[0]!
+    .verticalStatus,
+  "inside",
+);
+assert.equal(
+  analyzeRouteAirspaces(briefingRoute, [briefingAirspace], 5, 3500)[0]!
+    .verticalStatus,
+  "outside",
+);
 
 const airports = await loadAirports();
 assert.equal((await resolveWaypoints("LHBC LHBP", airports))[0]!.label, "LHBC");

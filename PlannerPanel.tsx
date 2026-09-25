@@ -18,6 +18,7 @@ import {
   type LatLng,
   type WaypointMeta,
 } from "@/lib/vfr/nav";
+import type { FlightPlanSnapshot } from "@/lib/vfr/briefing";
 import { exportNavlogXlsx } from "@/lib/xlsx/navlog";
 import { Alert, AlertDescription } from "@/ui/alert";
 import { Badge } from "@/ui/badge";
@@ -97,10 +98,12 @@ export type RouteStats = {
 export function PlannerPanel({
   onStats,
   onWaypointsChange,
+  onPlanChange,
   user,
 }: {
   onStats: (s: RouteStats) => void;
   onWaypointsChange?: (waypoints: WaypointMeta[]) => void;
+  onPlanChange?: (plan: FlightPlanSnapshot | null) => void;
   user: User | null;
 }) {
   const [airports, setAirports] = useState<Airport[]>([]);
@@ -187,6 +190,37 @@ export function PlannerPanel({
   useEffect(() => {
     onWaypointsChange?.(waypoints);
   }, [waypoints, onWaypointsChange]);
+
+  useEffect(() => {
+    if (!onPlanChange) return;
+    if (waypoints.length < 2 || result.legs.length === 0) {
+      onPlanChange(null);
+      return;
+    }
+    onPlanChange({
+      name: planName.trim() || "Untitled flight plan",
+      waypoints,
+      legs: result.legs,
+      totalDistanceNm: result.totalDistance,
+      totalTimeHours: result.totalTime,
+      totalTripFuel: result.totalFuel,
+      tas: numeric.tas,
+      fuelFlow: numeric.fuelFlow,
+      fuelUnit,
+      windDirection: numeric.windDir,
+      windSpeed: numeric.windSpeed,
+      variationValue: numeric.variationValue,
+      variationDirection,
+    });
+  }, [
+    onPlanChange,
+    waypoints,
+    result,
+    planName,
+    numeric,
+    fuelUnit,
+    variationDirection,
+  ]);
 
   const addWaypoint = useCallback((wp: WaypointMeta) => {
     setWaypoints((prev) => [
