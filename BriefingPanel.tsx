@@ -119,7 +119,7 @@ type RouteModelWeather = {
 };
 
 const DEFAULT_FORM: BriefingForm = {
-  aircraftStatus: "normal",
+  aircraftStatus: "",
   fuelOnBoard: "",
   notamStatus: "not-verified",
   notamSummary: "",
@@ -1095,9 +1095,10 @@ export function BriefingPanel({ plan }: Props) {
       squawk: form.squawk || "7000",
       qnh:
         form.qnh ||
-        (departureWeather?.qnhHpa == null
-          ? ""
-          : String(Math.round(departureWeather.qnhHpa))),
+        (departureWeather?.station === departureIcao &&
+        departureWeather.qnhHpa != null
+          ? String(Math.round(departureWeather.qnhHpa))
+          : ""),
       routeWindTemp: form.routeWindTemp || modelWind,
       freezingLevelFt:
         form.freezingLevelFt ||
@@ -1172,6 +1173,8 @@ export function BriefingPanel({ plan }: Props) {
 
   const missing: string[] = [];
   if (!plannedDeparture) missing.push("planned departure UTC");
+  if (!resolvedForm.aircraftStatus.trim())
+    missing.push("aircraft technical status");
   if (!resolvedForm.fuelOnBoard.trim()) missing.push("fuel on board");
   if (!resolvedForm.rotationSpeedKt.trim()) missing.push("Vr");
   if (!resolvedForm.climbSpeedKt.trim()) missing.push("climb speed");
@@ -1179,6 +1182,7 @@ export function BriefingPanel({ plan }: Props) {
     missing.push("runway condition");
   if (!resolvedForm.taxiRoute.trim()) missing.push("taxi route");
   if (!resolvedForm.com1Standby.trim()) missing.push("next/standby ATS frequency");
+  if (!resolvedForm.qnh.trim()) missing.push("local QNH");
   if (!resolvedForm.llsigwxSummary.trim()) missing.push("LLSIGWX review");
   if (resolvedForm.goNoGo === "not-set") missing.push("GO / NO-GO decision");
   if (!departureIcao) missing.push("departure ICAO");
@@ -1289,6 +1293,12 @@ export function BriefingPanel({ plan }: Props) {
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <Field
+                  label="Aircraft technical status"
+                  value={form.aircraftStatus}
+                  onChange={(value) => update("aircraftStatus", value)}
+                  placeholder="e.g. normal / deferred defect if applicable"
+                />
+                <Field
                   label="Fuel on board"
                   value={form.fuelOnBoard}
                   onChange={(value) => update("fuelOnBoard", value)}
@@ -1318,6 +1328,19 @@ export function BriefingPanel({ plan }: Props) {
                   onChange={(value) => update("com1Standby", value)}
                   placeholder="Cannot be safely inferred from airport DB alone"
                 />
+                {!resolvedForm.qnh && (
+                  <Field
+                    label="Local QNH"
+                    value={form.qnh}
+                    onChange={(value) => update("qnh", value)}
+                    placeholder={
+                      departureWeather?.qnhHpa != null
+                        ? "Nearest station planning QNH: " +
+                          Math.round(departureWeather.qnhHpa)
+                        : "Enter local/cleared QNH"
+                    }
+                  />
+                )}
               </div>
 
               <div className="space-y-1.5">
@@ -1561,11 +1584,6 @@ export function BriefingPanel({ plan }: Props) {
                 label="QNH override"
                 value={form.qnh}
                 onChange={(value) => update("qnh", value)}
-              />
-              <Field
-                label="Aircraft technical status"
-                value={form.aircraftStatus}
-                onChange={(value) => update("aircraftStatus", value)}
               />
               <Field
                 label="Highest obstacle ±5 NM (optional)"
