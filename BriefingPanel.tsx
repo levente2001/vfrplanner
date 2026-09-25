@@ -387,12 +387,16 @@ export function BriefingPanel({ plan }: Props) {
 
   const departure = plan?.waypoints[0];
   const destination = plan?.waypoints[plan.waypoints.length - 1];
-  const departureIcao = isIcao(departure?.label)
-    ? departure!.label.toUpperCase()
-    : "";
-  const destinationIcao = isIcao(destination?.label)
-    ? destination!.label.toUpperCase()
-    : "";
+  const departureIcao = isIcao(form.departureIcao)
+    ? form.departureIcao.toUpperCase()
+    : isIcao(departure?.label)
+      ? departure!.label.toUpperCase()
+      : "";
+  const destinationIcao = isIcao(form.destinationIcao)
+    ? form.destinationIcao.toUpperCase()
+    : isIcao(destination?.label)
+      ? destination!.label.toUpperCase()
+      : "";
 
   function update<K extends keyof BriefingForm>(
     key: K,
