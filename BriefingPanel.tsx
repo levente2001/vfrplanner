@@ -5,7 +5,6 @@ import {
   Clipboard,
   CloudSun,
   FileText,
-  MapPin,
   Printer,
   RefreshCw,
   ShieldAlert,
@@ -300,7 +299,8 @@ async function fetchWeather(
 }
 
 function parseHeading(value: string | undefined, ident: string | undefined) {
-  const numeric = Number(value);
+  const numeric =
+    value === undefined || value.trim() === "" ? Number.NaN : Number(value);
   if (Number.isFinite(numeric)) return ((numeric % 360) + 360) % 360;
   const match = ident?.match(/^(\d{2})/);
   if (!match) return null;
