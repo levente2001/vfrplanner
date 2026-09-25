@@ -811,6 +811,40 @@ export function BriefingPanel({ plan }: Props) {
                   </Badge>
                 )}
               </div>
+
+              {(departureWeather?.rawMetar || destinationWeather?.rawMetar) && (
+                <details className="rounded-md border border-border bg-panel-muted p-3 text-xs">
+                  <summary className="cursor-pointer font-mono font-semibold uppercase tracking-[0.12em]">
+                    Raw METAR / TAF reference
+                  </summary>
+                  <div className="mt-3 space-y-3 font-mono text-[11px] leading-relaxed">
+                    {departureWeather && (
+                      <div>
+                        <strong>DEP {departureWeather.station}</strong>
+                        <pre className="mt-1 whitespace-pre-wrap">
+                          {departureWeather.rawMetar || "No METAR"}
+                        </pre>
+                        <pre className="mt-1 whitespace-pre-wrap text-muted-foreground">
+                          {departureWeather.rawTaf ||
+                            "No TAF available for this reporting station"}
+                        </pre>
+                      </div>
+                    )}
+                    {destinationWeather && (
+                      <div>
+                        <strong>DEST {destinationWeather.station}</strong>
+                        <pre className="mt-1 whitespace-pre-wrap">
+                          {destinationWeather.rawMetar || "No METAR"}
+                        </pre>
+                        <pre className="mt-1 whitespace-pre-wrap text-muted-foreground">
+                          {destinationWeather.rawTaf ||
+                            "No TAF available for this reporting station"}
+                        </pre>
+                      </div>
+                    )}
+                  </div>
+                </details>
+              )}
               {weatherError && (
                 <Alert variant="destructive">
                   <AlertTriangle className="size-4" />
