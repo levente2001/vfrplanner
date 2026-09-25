@@ -279,8 +279,16 @@ export function generateRouteSummary(args: {
   departureWeather: BriefingWeather | null;
   destinationWeather: BriefingWeather | null;
   airspaces: AirspaceBriefingItem[];
+  airspaceDataLoaded: boolean;
 }) {
-  const { plan, form, departureWeather, destinationWeather, airspaces } = args;
+  const {
+    plan,
+    form,
+    departureWeather,
+    destinationWeather,
+    airspaces,
+    airspaceDataLoaded,
+  } = args;
   if (!plan) {
     return "No calculated route is available. Calculate the route in Planner first.";
   }
@@ -318,7 +326,11 @@ export function generateRouteSummary(args: {
   }
 
   lines.push("");
-  if (relevantAirspaces.length) {
+  if (!airspaceDataLoaded) {
+    lines.push(
+      "Airspace analysis is unavailable because the OpenAIR dataset did not load. Verify the route against current official airspace publications.",
+    );
+  } else if (relevantAirspaces.length) {
     lines.push("Airspaces within the 5 NM planning corridor:");
     for (const item of relevantAirspaces) {
       lines.push(
@@ -363,7 +375,9 @@ export function generateApproachBriefing(args: {
   weather: BriefingWeather | null;
 }) {
   const { plan, form, weather } = args;
-  const destination = plan?.waypoints[plan.waypoints.length - 1];
+  const destination = plan
+    ? plan.waypoints[plan.waypoints.length - 1]
+    : undefined;
   const cruise = num(form.cruiseAltitudeFt);
   const target = num(form.destinationCircuitAltitudeFt);
   const altitudeToLose =
