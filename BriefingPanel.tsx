@@ -573,6 +573,12 @@ function nearestHourlyIndex(times: string[], at: Date) {
   return best;
 }
 
+function hourlyNumber(value: unknown) {
+  if (value === null || value === undefined || value === "") return null;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
 async function fetchRouteModelWeather(
   plan: FlightPlanSnapshot,
   departure: Date,
@@ -618,27 +624,51 @@ async function fetchRouteModelWeather(
       const hourly = payload.hourly ?? {};
       const times = (hourly.time ?? []).map(String);
       if (!times.length) throw new Error("Route weather model returned no hourly data.");
+      const firstTime = Date.parse(
+        times[0]!.endsWith("Z") ? times[0]! : times[0]! + "Z",
+      );
+      const lastTime = Date.parse(
+        times[times.length - 1]!.endsWith("Z")
+          ? times[times.length - 1]!
+          : times[times.length - 1]! + "Z",
+      );
+      if (at.getTime() < firstTime || at.getTime() > lastTime) {
+        throw new Error("Planned flight time is outside the available route-weather forecast range.");
+      }
+
       const i = nearestHourlyIndex(times, at);
-      const temperature = Number(hourly["temperature_" + level + "hPa"]?.[i]);
-      const windSpeed = Number(hourly["wind_speed_" + level + "hPa"]?.[i]);
-      const windDirection = Number(hourly["wind_direction_" + level + "hPa"]?.[i]);
-      const freezingMeters = Number(hourly.freezing_level_height?.[i]);
+      const temperature = hourlyNumber(
+        hourly["temperature_" + level + "hPa"]?.[i],
+      );
+      const windSpeed = hourlyNumber(
+        hourly["wind_speed_" + level + "hPa"]?.[i],
+      );
+      const windDirection = hourlyNumber(
+        hourly["wind_direction_" + level + "hPa"]?.[i],
+      );
+      const freezingMeters = hourlyNumber(hourly.freezing_level_height?.[i]);
       return {
         temperature,
         windSpeed,
         windDirection,
-        freezingLevelFt: Number.isFinite(freezingMeters)
-          ? freezingMeters * 3.28084
-          : null,
+        freezingLevelFt:
+          freezingMeters == null ? null : freezingMeters * 3.28084,
       };
     }),
   );
 
   const valid = samples.filter(
-    (sample) =>
-      Number.isFinite(sample.temperature) &&
-      Number.isFinite(sample.windSpeed) &&
-      Number.isFinite(sample.windDirection),
+    (
+      sample,
+    ): sample is {
+      temperature: number;
+      windSpeed: number;
+      windDirection: number;
+      freezingLevelFt: number | null;
+    } =>
+      sample.temperature != null &&
+      sample.windSpeed != null &&
+      sample.windDirection != null,
   );
   if (!valid.length) throw new Error("Route weather model returned incomplete data.");
 
