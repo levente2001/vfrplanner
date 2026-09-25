@@ -1273,6 +1273,12 @@ export function BriefingPanel({ plan }: Props) {
   if (!resolvedForm.qnh.trim()) missing.push("local QNH");
   if (!resolvedForm.llsigwxSummary.trim()) missing.push("LLSIGWX review");
   if (resolvedForm.goNoGo === "not-set") missing.push("GO / NO-GO decision");
+  if (
+    resolvedForm.goNoGo !== "not-set" &&
+    !resolvedForm.goNoGoReason.trim()
+  ) {
+    missing.push("GO / NO-GO reasoning");
+  }
   if (!departureIcao) missing.push("departure ICAO");
   if (!destinationIcao) missing.push("destination ICAO");
   if (!resolvedForm.departureRunway.trim()) missing.push("departure runway");
