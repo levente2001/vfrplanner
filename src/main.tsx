@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { User } from "firebase/auth";
 import "./styles.css";
 import { AuthPanel } from "../AuthPanel";
+import { BriefingPanel } from "../BriefingPanel";
 import AircraftsPanel from "@/flightlogger/AircraftsPanel";
 import FlightLoggerPanel from "@/flightlogger/FlightLoggerPanel";
 import { NotamPanel } from "../NotamPanel";
@@ -14,6 +15,7 @@ import { WbPanel } from "../WbPanel";
 import {
   CalendarDays,
   CloudSun,
+  FileText,
   FileWarning,
   Map,
   Menu,
@@ -22,11 +24,18 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
+import type { FlightPlanSnapshot } from "@/lib/vfr/briefing";
 import type { WaypointMeta } from "@/lib/vfr/nav";
 import { registerServiceWorker } from "./registerServiceWorker";
 
 type ViewId =
-  "planner" | "weather" | "notams" | "wb" | "flightlogger" | "aircrafts";
+  | "planner"
+  | "briefing"
+  | "weather"
+  | "notams"
+  | "wb"
+  | "flightlogger"
+  | "aircrafts";
 
 const navItems: Array<{
   id: ViewId;
@@ -36,6 +45,13 @@ const navItems: Array<{
   isNew?: boolean;
 }> = [
   { id: "planner", href: "#planner", label: "Planner", icon: Map },
+  {
+    id: "briefing",
+    href: "#briefing",
+    label: "Briefing",
+    icon: FileText,
+    isNew: true,
+  },
   {
     id: "flightlogger",
     href: "#flightlogger",
@@ -86,6 +102,7 @@ function App() {
   });
   const [user, setUser] = useState<User | null>(null);
   const [routeWaypoints, setRouteWaypoints] = useState<WaypointMeta[]>([]);
+  const [flightPlan, setFlightPlan] = useState<FlightPlanSnapshot | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeView, setActiveView] = useState<ViewId>(() =>
     viewFromHash(window.location.hash),
@@ -97,6 +114,10 @@ function App() {
   );
   const handleWaypointsChange = useCallback(
     (next: WaypointMeta[]) => setRouteWaypoints(next),
+    [],
+  );
+  const handlePlanChange = useCallback(
+    (next: FlightPlanSnapshot | null) => setFlightPlan(next),
     [],
   );
   const handleViewChange = useCallback((view: ViewId) => {
@@ -248,8 +269,12 @@ function App() {
             <PlannerPanel
               onStats={handleStats}
               onWaypointsChange={handleWaypointsChange}
+              onPlanChange={handlePlanChange}
               user={user}
             />
+          </div>
+          <div hidden={activeView !== "briefing"}>
+            <BriefingPanel plan={flightPlan} />
           </div>
           <div hidden={activeView !== "weather"}>
             <WeatherPanel />
