@@ -651,6 +651,18 @@ export function BriefingPanel({ plan }: Props) {
             <CardContent className="space-y-5 p-4 sm:p-5">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <Field
+                  label="Departure ICAO override"
+                  value={form.departureIcao}
+                  onChange={(value) => update("departureIcao", value.toUpperCase())}
+                  placeholder={departure?.label ?? "e.g. LHBC"}
+                />
+                <Field
+                  label="Destination ICAO override"
+                  value={form.destinationIcao}
+                  onChange={(value) => update("destinationIcao", value.toUpperCase())}
+                  placeholder={destination?.label ?? "e.g. LHPP"}
+                />
+                <Field
                   label="Aircraft technical status"
                   value={form.aircraftStatus}
                   onChange={(value) => update("aircraftStatus", value)}
