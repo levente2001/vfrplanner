@@ -58,6 +58,7 @@ export type AirspaceBriefingItem = {
   lowerLimit: string;
   upperLimit: string;
   distanceNm: number;
+  firstLegIndex: number;
   verticalStatus: "inside" | "outside" | "unknown";
 };
 
@@ -637,27 +638,36 @@ export function analyzeRouteAirspaces(
   for (const airspace of airspaces) {
     if (airspace.points.length < 3) continue;
     let minDistance = Number.POSITIVE_INFINITY;
+    let firstLegIndex = Number.POSITIVE_INFINITY;
 
-    for (const [routeA, routeB] of routeSegments) {
+    for (let legIndex = 0; legIndex < routeSegments.length; legIndex++) {
+      const [routeA, routeB] = routeSegments[legIndex]!;
+      let legDistance = Number.POSITIVE_INFINITY;
       for (let i = 0; i < airspace.points.length; i++) {
         const p1 = airspace.points[i]!;
         const p2 = airspace.points[(i + 1) % airspace.points.length]!;
         const airA = toLocalNm(p1[0], p1[1], refLat);
         const airB = toLocalNm(p2[0], p2[1], refLat);
-        minDistance = Math.min(
-          minDistance,
+        legDistance = Math.min(
+          legDistance,
           segmentDistance(routeA, routeB, airA, airB),
         );
       }
+      minDistance = Math.min(minDistance, legDistance);
+      if (legDistance <= corridorNm) {
+        firstLegIndex = Math.min(firstLegIndex, legIndex);
+      }
     }
 
-    if (
-      waypoints.some((waypoint) =>
-        pointInPolygon([waypoint.lat, waypoint.lon], airspace.points),
-      )
-    ) {
-      minDistance = 0;
-    }
+    waypoints.forEach((waypoint, waypointIndex) => {
+      if (pointInPolygon([waypoint.lat, waypoint.lon], airspace.points)) {
+        minDistance = 0;
+        firstLegIndex = Math.min(
+          firstLegIndex,
+          Math.max(0, Math.min(routeSegments.length - 1, waypointIndex)),
+        );
+      }
+    });
 
     if (minDistance > corridorNm) continue;
 
@@ -683,9 +693,13 @@ export function analyzeRouteAirspaces(
       lowerLimit: airspace.lowerLimit,
       upperLimit: airspace.upperLimit,
       distanceNm: minDistance,
+      firstLegIndex: Number.isFinite(firstLegIndex) ? firstLegIndex : 0,
       verticalStatus,
     });
   }
 
-  return items.sort((a, b) => a.distanceNm - b.distanceNm);
+  return items.sort(
+    (a, b) =>
+      a.firstLegIndex - b.firstLegIndex || a.distanceNm - b.distanceNm,
+  );
 }
