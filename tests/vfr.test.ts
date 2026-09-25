@@ -21,7 +21,9 @@ import {
 import { parseOpenAir } from "../src/lib/vfr/airspace";
 import {
   analyzeRouteAirspaces,
+  inferDepartureExitLeg,
   minimumCruiseAltitude,
+  suggestVfrCruiseAltitude,
 } from "../src/lib/vfr/briefing";
 import {
   calculateFlightCategory,
@@ -145,6 +147,11 @@ assert.equal(airspaces[0]!.points[0]![1], 19);
 assert.equal(minimumCruiseAltitude("1840"), 2900);
 assert.equal(minimumCruiseAltitude("6000"), 8000);
 assert.equal(minimumCruiseAltitude(""), null);
+assert.equal(suggestVfrCruiseAltitude(90), 3500);
+assert.equal(suggestVfrCruiseAltitude(220), 4500);
+assert.equal(inferDepartureExitLeg(170, 175), "upwind leg");
+assert.equal(inferDepartureExitLeg(170, 260), "crosswind leg");
+assert.equal(inferDepartureExitLeg(170, 350), "downwind leg");
 
 const briefingRoute: WaypointMeta[] = [
   { label: "A", lat: 47.05, lon: 18.9 },
