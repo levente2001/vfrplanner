@@ -41,3 +41,15 @@
   to = "/.netlify/functions/llsigwx"
   status = 200
   force = true
+
+[[redirects]]
+  from = "/api/notams"
+  to = "/.netlify/functions/notams"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/weather/stations"
+  to = "/.netlify/functions/weather-stations"
+  status = 200
+  force = true
