@@ -25,6 +25,20 @@ export type BriefingWeather = {
   distanceNm: number | null;
   rawMetar: string;
   rawTaf?: string | null;
+  tafSegments?: Array<{
+    type: string;
+    from: string | null;
+    to: string | null;
+    wind: {
+      direction: number | "VRB" | null;
+      speedKt: number | null;
+      gustKt: number | null;
+    };
+    visibilitySm: number | null;
+    visibilityText: string;
+    weather: string | null;
+    clouds: Array<{ cover: string; baseFt: number | null }>;
+  }>;
   windDirection: number | "VRB" | null;
   windSpeedKt: number | null;
   windGustKt: number | null;
@@ -44,13 +58,16 @@ export type AirspaceBriefingItem = {
   lowerLimit: string;
   upperLimit: string;
   distanceNm: number;
+  firstLegIndex: number;
   verticalStatus: "inside" | "outside" | "unknown";
 };
 
 export type NotamVerification =
   | "not-verified"
   | "checked-none"
-  | "checked-relevant";
+  | "checked-relevant"
+  | "auto-partial-none"
+  | "auto-partial-relevant";
 
 export type BriefingForm = {
   aircraftStatus: string;
@@ -58,6 +75,7 @@ export type BriefingForm = {
   notamStatus: NotamVerification;
   notamSummary: string;
   expectedWeather: string;
+  destinationExpectedWeather: string;
   departureIcao: string;
   destinationIcao: string;
   llsigwxSummary: string;
@@ -183,9 +201,23 @@ function notamSentence(form: BriefingForm) {
     return "Relevant NOTAMs: nothing relevant.";
   }
   if (form.notamStatus === "checked-relevant") {
-    return "Relevant NOTAMs: " + pad(form.notamSummary, "[brief the relevant NOTAMs]") + ".";
+    return (
+      "Relevant NOTAMs: " +
+      pad(form.notamSummary, "[brief the relevant NOTAMs]") +
+      "."
+    );
   }
-  return "NOTAMs have not been verified. Complete the official NOTAM briefing before flight.";
+  if (form.notamStatus === "auto-partial-relevant") {
+    return (
+      "Automatic aerodrome NOTAM check found: " +
+      pad(form.notamSummary, "[relevant aerodrome NOTAMs]") +
+      ". FIR and en-route NOTAM coverage must still be verified in the official briefing."
+    );
+  }
+  if (form.notamStatus === "auto-partial-none") {
+    return "Automatic aerodrome NOTAM check found no relevant items for the ICAO-coded route aerodromes. FIR and en-route NOTAM coverage must still be verified in the official briefing.";
+  }
+  return "NOTAMs have not been fully verified. Complete the official NOTAM briefing before flight.";
 }
 
 function runwayCondition(form: BriefingForm) {
@@ -200,6 +232,32 @@ export function minimumCruiseAltitude(highestObstacleFt: string) {
   if (obstacle == null || obstacle < 0) return null;
   const margin = obstacle >= 6000 ? 2000 : 1000;
   return Math.ceil((obstacle + margin) / 100) * 100;
+}
+
+export function suggestVfrCruiseAltitude(magneticCourse: number | null | undefined) {
+  if (magneticCourse == null || !Number.isFinite(magneticCourse)) return null;
+  const normalized = ((magneticCourse % 360) + 360) % 360;
+  return normalized < 180 ? 3500 : 4500;
+}
+
+export function inferDepartureExitLeg(
+  runwayHeading: number | null | undefined,
+  outboundMagneticCourse: number | null | undefined,
+) {
+  if (
+    runwayHeading == null ||
+    outboundMagneticCourse == null ||
+    !Number.isFinite(runwayHeading) ||
+    !Number.isFinite(outboundMagneticCourse)
+  ) {
+    return null;
+  }
+  const relative =
+    ((outboundMagneticCourse - runwayHeading + 540) % 360) - 180;
+  const absolute = Math.abs(relative);
+  if (absolute <= 45) return "upwind leg";
+  if (absolute >= 135) return "downwind leg";
+  return "crosswind leg";
 }
 
 export function generateDepartureBriefing(args: {
@@ -237,11 +295,15 @@ export function generateDepartureBriefing(args: {
       " proceed to " +
       (firstEnroute?.label ?? "[first waypoint]") +
       ".",
-    "Initially climb to " +
-      pad(form.initialAltitudeFt, "[initial altitude]") +
-      " feet, then continue to " +
-      pad(form.cruiseAltitudeFt, "[cruise altitude]") +
-      " feet.",
+    form.initialAltitudeFt.trim()
+      ? "Initially climb to " +
+        form.initialAltitudeFt.trim() +
+        " feet, then continue to " +
+        pad(form.cruiseAltitudeFt, "[cruise altitude]") +
+        " feet."
+      : "Continue climb to the planned cruising altitude of " +
+        pad(form.cruiseAltitudeFt, "[cruise altitude]") +
+        " feet.",
     "Minimum safe altitude: not applicable for the VFR departure briefing.",
     "",
     "COM 1 active " +
@@ -303,11 +365,6 @@ export function generateRouteSummary(args: {
     "Total distance " + plan.totalDistanceNm.toFixed(1) + " NM.",
     "Estimated en-route time " + timeLabel(plan.totalTimeHours) + ".",
     "Calculated trip fuel " + fuelLabel(plan) + ".",
-    "Planning wind " +
-      Math.round(plan.windDirection).toString().padStart(3, "0") +
-      " degrees " +
-      Math.round(plan.windSpeed) +
-      " knots.",
     "Planned cruising altitude " + pad(form.cruiseAltitudeFt, "[cruise altitude]") + " feet.",
   ];
 
@@ -354,7 +411,14 @@ export function generateRouteSummary(args: {
   lines.push(
     "",
     "Departure weather: " + formatWeatherForSpeech(departureWeather) + ".",
-    "Destination weather: " + formatWeatherForSpeech(destinationWeather) + ".",
+    "Destination weather: " +
+      formatWeatherForSpeech(destinationWeather) +
+      ". Expected at arrival: " +
+      pad(
+        form.destinationExpectedWeather,
+        "[state expected destination weather from the forecast]",
+      ) +
+      ".",
     "LLSIGWX analysis: " + pad(form.llsigwxSummary, "[review and summarise LLSIGWX]") + ".",
     "Cruise wind and temperature forecast: " + pad(form.routeWindTemp, "[route wind and temperature]") + ".",
     "0 degree Celsius level: " + (form.freezingLevelFt.trim() ? form.freezingLevelFt.trim() + " feet" : "[0 degree Celsius level]") + ".",
@@ -395,6 +459,12 @@ export function generateApproachBriefing(args: {
     "Aircraft technical status: " + pad(form.aircraftStatus, "[aircraft technical status]") + ".",
     notamSentence(form),
     "Weather at destination: " + weatherSpeech + ".",
+    "Expected weather at arrival: " +
+      pad(
+        form.destinationExpectedWeather,
+        "[state expected destination weather from the forecast]",
+      ) +
+      ".",
     "",
     "This will be a visual approach at " + airportLabel(destination) + ".",
     "Chart effective date: not applicable for VFR.",
@@ -563,27 +633,36 @@ export function analyzeRouteAirspaces(
   for (const airspace of airspaces) {
     if (airspace.points.length < 3) continue;
     let minDistance = Number.POSITIVE_INFINITY;
+    let firstLegIndex = Number.POSITIVE_INFINITY;
 
-    for (const [routeA, routeB] of routeSegments) {
+    for (let legIndex = 0; legIndex < routeSegments.length; legIndex++) {
+      const [routeA, routeB] = routeSegments[legIndex]!;
+      let legDistance = Number.POSITIVE_INFINITY;
       for (let i = 0; i < airspace.points.length; i++) {
         const p1 = airspace.points[i]!;
         const p2 = airspace.points[(i + 1) % airspace.points.length]!;
         const airA = toLocalNm(p1[0], p1[1], refLat);
         const airB = toLocalNm(p2[0], p2[1], refLat);
-        minDistance = Math.min(
-          minDistance,
+        legDistance = Math.min(
+          legDistance,
           segmentDistance(routeA, routeB, airA, airB),
         );
       }
+      minDistance = Math.min(minDistance, legDistance);
+      if (legDistance <= corridorNm) {
+        firstLegIndex = Math.min(firstLegIndex, legIndex);
+      }
     }
 
-    if (
-      waypoints.some((waypoint) =>
-        pointInPolygon([waypoint.lat, waypoint.lon], airspace.points),
-      )
-    ) {
-      minDistance = 0;
-    }
+    waypoints.forEach((waypoint, waypointIndex) => {
+      if (pointInPolygon([waypoint.lat, waypoint.lon], airspace.points)) {
+        minDistance = 0;
+        firstLegIndex = Math.min(
+          firstLegIndex,
+          Math.max(0, Math.min(routeSegments.length - 1, waypointIndex)),
+        );
+      }
+    });
 
     if (minDistance > corridorNm) continue;
 
@@ -609,9 +688,13 @@ export function analyzeRouteAirspaces(
       lowerLimit: airspace.lowerLimit,
       upperLimit: airspace.upperLimit,
       distanceNm: minDistance,
+      firstLegIndex: Number.isFinite(firstLegIndex) ? firstLegIndex : 0,
       verticalStatus,
     });
   }
 
-  return items.sort((a, b) => a.distanceNm - b.distanceNm);
+  return items.sort(
+    (a, b) =>
+      a.firstLegIndex - b.firstLegIndex || a.distanceNm - b.distanceNm,
+  );
 }

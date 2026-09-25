@@ -7,6 +7,7 @@ import { handleAirspaceUsePlan } from "./src/lib/airspaceUsePlan";
 import { handleFlightLoggerAircraftDetail } from "./src/lib/flightloggerAircraftDetail";
 import { handleFlightLoggerAircrafts } from "./src/lib/flightloggerAircrafts";
 import { handleFlightLoggerBookings } from "./src/lib/flightloggerBookings";
+import { handleRouteNotams } from "./src/lib/routeNotamsServer";
 import { adaptAviationWeather } from "./src/lib/weather/providers/aviationWeather";
 import { adaptCheckWx } from "./src/lib/weather/providers/checkwx";
 
@@ -54,7 +55,11 @@ async function sendFetchResponse(res: ServerResponse, response: Response) {
   res.end(Buffer.from(await response.arrayBuffer()));
 }
 
-function weatherApiPlugin(apiKey: string, configuredProvider: string): Plugin {
+function weatherApiPlugin(
+  apiKey: string,
+  configuredProvider: string,
+  skyLinkApiKey: string,
+): Plugin {
   const cache = new Map<string, { expiresAt: number; body: string }>();
   let llsigwxCache: {
     expiresAt: number;
@@ -67,6 +72,32 @@ function weatherApiPlugin(apiKey: string, configuredProvider: string): Plugin {
   return {
     name: "aviation-weather-api-proxy",
     configureServer(server) {
+      server.middlewares.use("/api/notams", async (req, res) => {
+        const chunks: Buffer[] = [];
+        for await (const chunk of req) {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        }
+        const body = chunks.length
+          ? Buffer.concat(chunks).toString("utf8")
+          : undefined;
+        const response = await handleRouteNotams(
+          new Request(`http://localhost/api/notams${req.url ?? ""}`, {
+            method: req.method,
+            headers: {
+              "content-type": String(
+                req.headers["content-type"] ?? "application/json",
+              ),
+            },
+            body:
+              req.method === "GET" || req.method === "HEAD"
+                ? undefined
+                : body,
+          }),
+          { apiKey: skyLinkApiKey },
+        );
+        await sendFetchResponse(res, response);
+      });
+
       server.middlewares.use("/api/bookings", async (req, res) => {
         const response = await handleFlightLoggerBookings(
           new Request(`http://localhost/api/bookings${req.url ?? ""}`, {
@@ -481,7 +512,11 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [
-      weatherApiPlugin(env.CHECKWX_API_KEY, env.AVIATION_WEATHER_PROVIDER),
+      weatherApiPlugin(
+        env.CHECKWX_API_KEY,
+        env.AVIATION_WEATHER_PROVIDER,
+        env.SKYLINK_API_KEY,
+      ),
       react(),
       tailwindcss(),
     ],
