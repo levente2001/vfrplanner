@@ -124,9 +124,7 @@ function TrainerNavlogTable({
     fuelUnit,
     fuelUnitLabel: fuelUnitLabel[fuelUnit],
   });
-  const displayWaypoints = waypoints.slice(0, NAVLOG_WAYPOINT_LIMIT);
-  const displayLegs = legs.slice(0, NAVLOG_LEG_LIMIT);
-  const isLimited =
+  const isExportLimited =
     waypoints.length > NAVLOG_WAYPOINT_LIMIT || legs.length > NAVLOG_LEG_LIMIT;
 
   return (
@@ -153,8 +151,8 @@ function TrainerNavlogTable({
           </TableRow>
         </TableHeader>
         <TableBody className="font-mono text-xs">
-          {displayWaypoints.map((waypoint, index) => {
-            const leg = displayLegs[index];
+          {waypoints.map((waypoint, index) => {
+            const leg = legs[index];
             return (
               <Fragment key={`${waypoint.label}-${index}`}>
                 <TableRow key={`${waypoint.label}-${index}-waypoint`} className="bg-background">
@@ -238,10 +236,10 @@ function TrainerNavlogTable({
         </Table>
       </div>
 
-      {isLimited && (
+      {isExportLimited && (
         <p className="text-xs text-muted-foreground">
-          The Excel navlog template displays the first {NAVLOG_LEG_LIMIT} legs and{" "}
-          {NAVLOG_WAYPOINT_LIMIT} waypoints.
+          All waypoints and legs are shown above. The Excel export template is limited to
+          the first {NAVLOG_LEG_LIMIT} legs and {NAVLOG_WAYPOINT_LIMIT} waypoints.
         </p>
       )}
     </div>
@@ -269,6 +267,7 @@ export function PlannerPanel({
   const [airports, setAirports] = useState<Airport[]>([]);
   const [showAirports, setShowAirports] = useState(true);
   const [showAirspaces, setShowAirspaces] = useState(false);
+  const [showCorridor, setShowCorridor] = useState(false);
   const [waypoints, setWaypoints] = useState<WaypointMeta[]>([]);
   const [fitKey, setFitKey] = useState(0);
   const [text, setText] = useState("LHBP LHSM LHPP");
@@ -635,7 +634,7 @@ export function PlannerPanel({
     <section id="planner" className="grid grid-cols-1 gap-4 lg:gap-6 xl:grid-cols-3">
       <div className="min-w-0 space-y-4 lg:space-y-6 xl:col-span-2">
         <Card className="flex h-[380px] flex-col overflow-hidden sm:h-[460px] xl:h-[500px]">
-          <CardHeader className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border bg-panel-muted px-3 py-2.5">
+          <CardHeader className="grid grid-cols-1 items-center gap-3 border-b border-border bg-panel-muted px-3 py-2.5 sm:grid-cols-[minmax(0,1fr)_auto]">
             <CardTitle className="panel-heading truncate">Navigation map</CardTitle>
             <div className="flex shrink-0 flex-wrap items-center justify-end gap-3">
               <Label className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
@@ -656,6 +655,15 @@ export function PlannerPanel({
                 />
                 ICAO airports
               </Label>
+              <Label className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={showCorridor}
+                  onChange={(e) => setShowCorridor(e.target.checked)}
+                  className="size-3.5 accent-primary"
+                />
+                ±5 NM corridor
+              </Label>
             </div>
           </CardHeader>
           <div className="relative flex-1">
@@ -674,6 +682,7 @@ export function PlannerPanel({
                   airports={airports}
                   showAirports={showAirports}
                   showAirspaces={showAirspaces}
+                  showCorridor={showCorridor}
                   onAddWaypoint={addWaypoint}
                   onMoveWaypoint={moveWaypoint}
                   onRemoveWaypoint={removeWaypoint}

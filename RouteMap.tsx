@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import polygonClipping, { type Polygon } from "polygon-clipping";
 import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
 import markerIcon from "leaflet/dist/images/marker-icon.png";
 import markerShadow from "leaflet/dist/images/marker-shadow.png";
@@ -27,6 +28,7 @@ type Props = {
   airports: Airport[];
   showAirports: boolean;
   showAirspaces: boolean;
+  showCorridor: boolean;
   onAddWaypoint: (wp: WaypointMeta) => void;
   onMoveWaypoint: (index: number, pos: LatLng) => void;
   onRemoveWaypoint: (index: number) => void;
@@ -38,6 +40,7 @@ export function RouteMap({
   airports,
   showAirports,
   showAirspaces,
+  showCorridor,
   onAddWaypoint,
   onMoveWaypoint,
   onRemoveWaypoint,
@@ -57,6 +60,9 @@ export function RouteMap({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const airspacesLayerRef = useRef<any>(null);
   const airspacesRef = useRef<Airspace[]>([]);
+  const corridorLayerRef = useRef<import("leaflet").LayerGroup | null>(null);
+  const corridorStateRef = useRef({ waypoints, showCorridor });
+  corridorStateRef.current = { waypoints, showCorridor };
   const cbRef = useRef({ onAddWaypoint, onMoveWaypoint, onRemoveWaypoint });
   cbRef.current = { onAddWaypoint, onMoveWaypoint, onRemoveWaypoint };
 
@@ -87,6 +93,10 @@ export function RouteMap({
       if (airspacesPane) airspacesPane.style.zIndex = "340";
       airportsLayerRef.current = L.layerGroup().addTo(map);
       airspacesLayerRef.current = L.layerGroup().addTo(map);
+      const corridorPane = map.createPane("corridorPane");
+      corridorPane.style.zIndex = "330";
+      corridorPane.style.pointerEvents = "none";
+      corridorLayerRef.current = L.layerGroup().addTo(map);
       map.on("click", (e: { latlng: { lat: number; lng: number } }) => {
         cbRef.current.onAddWaypoint({
           label: "WP",
@@ -99,6 +109,7 @@ export function RouteMap({
       renderAirports();
       renderAirspaces();
       syncWaypoints();
+      renderCorridor();
     })();
     return () => {
       disposed = true;
@@ -128,6 +139,77 @@ export function RouteMap({
         waypoints.map((w) => [w.lat, w.lon]),
         { color: "#3b82f6", weight: 3 },
       ).addTo(map);
+    }
+  }
+
+  function renderCorridor() {
+    const L = LRef.current;
+    const layer = corridorLayerRef.current;
+    if (!L || !layer) return;
+    layer.clearLayers();
+    const { waypoints: points, showCorridor: visible } = corridorStateRef.current;
+    if (!visible) return;
+    const polygons: Polygon[] = [];
+    const roundedPoints = new Set<WaypointMeta>();
+    const distance = (5 * 1852) / 6371000;
+    function offset(lat: number, lon: number, bearing: number): [number, number] {
+      const offsetLat = Math.asin(Math.sin(lat) * Math.cos(distance)
+        + Math.cos(lat) * Math.sin(distance) * Math.cos(bearing));
+      const offsetLon = lon + Math.atan2(
+        Math.sin(bearing) * Math.sin(distance) * Math.cos(lat),
+        Math.cos(distance) - Math.sin(lat) * Math.sin(offsetLat),
+      );
+      return [offsetLat * 180 / Math.PI, offsetLon * 180 / Math.PI];
+    }
+    for (let i = 1; i < points.length; i++) {
+      const from = points[i - 1];
+      const to = points[i];
+      if (from.lat === to.lat && from.lon === to.lon) continue;
+      roundedPoints.add(from);
+      roundedPoints.add(to);
+      // Sample the same Mercator segment Leaflet draws. Offset each sample by
+      // 5 NM on the sphere, so the width stays geographic at every zoom level.
+      const a = L.CRS.EPSG3857.project(L.latLng(from.lat, from.lon));
+      const b = L.CRS.EPSG3857.project(L.latLng(to.lat, to.lon));
+      const heading = Math.atan2(b.x - a.x, b.y - a.y);
+      const steps = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 10000));
+      const left: [number, number][] = [];
+      const right: [number, number][] = [];
+      for (let step = 0; step <= steps; step++) {
+        const fraction = step / steps;
+        const point = L.CRS.EPSG3857.unproject(L.point(
+          a.x + (b.x - a.x) * fraction,
+          a.y + (b.y - a.y) * fraction,
+        ));
+        const lat = point.lat * Math.PI / 180;
+        const lon = point.lng * Math.PI / 180;
+        for (const [side, edge] of [[-1, left], [1, right]] as const) {
+          const bearing = heading + side * Math.PI / 2;
+          edge.push(offset(lat, lon, bearing));
+        }
+      }
+      polygons.push([[...left, ...right.reverse(), left[0]]]);
+    }
+    // Round the ends and joins, then dissolve all overlaps into one geometry.
+    for (const point of roundedPoints) {
+      const ring = Array.from({ length: 180 }, (_, index) => offset(
+        point.lat * Math.PI / 180,
+        point.lon * Math.PI / 180,
+        index * 2 * Math.PI / 180,
+      ));
+      ring.push(ring[0]);
+      polygons.push([ring]);
+    }
+    if (polygons.length) {
+      const merged = polygonClipping.union(polygons[0], ...polygons.slice(1));
+      layer.addLayer(L.polygon(merged, {
+        pane: "corridorPane",
+        color: "#3b82f6",
+        fillOpacity: 0.1,
+        opacity: 0.3,
+        weight: 1,
+        interactive: false,
+      }));
     }
   }
 
@@ -228,6 +310,11 @@ export function RouteMap({
     syncWaypoints();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [waypoints]);
+
+  useEffect(() => {
+    renderCorridor();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [waypoints, showCorridor]);
 
   useEffect(() => {
     renderAirports();

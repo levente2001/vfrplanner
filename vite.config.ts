@@ -8,6 +8,7 @@ import { handleFlightLoggerAircraftDetail } from "./src/lib/flightloggerAircraft
 import { handleFlightLoggerAircrafts } from "./src/lib/flightloggerAircrafts";
 import { handleFlightLoggerBookings } from "./src/lib/flightloggerBookings";
 import { handleRouteNotams } from "./src/lib/routeNotamsServer";
+import { handlePohImport, POH_REQUEST_LIMIT } from "./src/lib/pohImportServer";
 import { adaptAviationWeather } from "./src/lib/weather/providers/aviationWeather";
 import { adaptCheckWx } from "./src/lib/weather/providers/checkwx";
 
@@ -507,11 +508,45 @@ function weatherApiPlugin(
   };
 }
 
+function pohApiPlugin(env: Record<string, string>): Plugin {
+  return {
+    name: "poh-import-api",
+    configureServer(server) {
+      server.middlewares.use("/api/poh-import", async (req, res) => {
+        try {
+          const chunks: Buffer[] = [];
+          let size = 0;
+          for await (const chunk of req) {
+            const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+            size += buffer.length;
+            if (size > POH_REQUEST_LIMIT) {
+              res.writeHead(413, { "content-type": "application/json" });
+              res.end(JSON.stringify({ error: "Too many chart images in one request." }));
+              return;
+            }
+            chunks.push(buffer);
+          }
+          const response = await handlePohImport(new Request("http://localhost/api/poh-import", {
+            method: req.method,
+            headers: { authorization: String(req.headers.authorization ?? ""), "content-type": String(req.headers["content-type"] ?? "") },
+            body: req.method === "GET" || req.method === "HEAD" ? undefined : Buffer.concat(chunks).toString("utf8"),
+          }), { apiKey: env.OPENAI_API_KEY, model: env.POH_OPENAI_MODEL, allowedUids: env.POH_ALLOWED_UIDS });
+          await sendFetchResponse(res, response);
+        } catch {
+          res.writeHead(500, { "content-type": "application/json" });
+          res.end(JSON.stringify({ error: "POH import request failed." }));
+        }
+      });
+    },
+  };
+}
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
 
   return {
     plugins: [
+      pohApiPlugin(env),
       weatherApiPlugin(
         env.CHECKWX_API_KEY,
         env.AVIATION_WEATHER_PROVIDER,

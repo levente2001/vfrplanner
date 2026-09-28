@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import type { User } from "firebase/auth";
+import { PerformancePanel } from "@/aircraft/PerformancePanel";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -45,6 +47,7 @@ import { Textarea } from "@/ui/textarea";
 
 type Props = {
   plan: FlightPlanSnapshot | null;
+  user: User | null;
 };
 
 type MetarProxyResponse = {
@@ -441,10 +444,13 @@ function runwaySuggestion(
     /ASPH|CONC|PAVED|BIT/i.test(runway.surface ?? ""),
   );
   const candidates = paved.length ? paved : runways;
-  const useWind =
-    typeof wind.direction === "number" && (wind.speedKt ?? 0) >= 3;
-  const target = useWind ? wind.direction : routeCourse;
-  if (target == null || !Number.isFinite(target)) return candidates[0] ?? null;
+  const target =
+    typeof wind.direction === "number" && (wind.speedKt ?? 0) >= 3
+      ? wind.direction
+      : routeCourse;
+  if (typeof target !== "number" || !Number.isFinite(target)) {
+    return candidates[0] ?? null;
+  }
   return (
     [...candidates].sort(
       (a, b) =>
@@ -784,7 +790,7 @@ function AutoRow({
   );
 }
 
-export function BriefingPanel({ plan }: Props) {
+export function BriefingPanel({ plan, user }: Props) {
   const [form, setForm] = useState<BriefingForm>(DEFAULT_FORM);
   const [plannedDepartureUtc, setPlannedDepartureUtc] = useState("");
   const [departureWeather, setDepartureWeather] =
@@ -928,8 +934,8 @@ export function BriefingPanel({ plan }: Props) {
 
   useEffect(() => {
     let cancelled = false;
+    setDepartureAirport(null);
     if (!departureIcao) {
-      setDepartureAirport(null);
       return;
     }
     void fetchAirportData(departureIcao).then((data) => {
@@ -942,8 +948,8 @@ export function BriefingPanel({ plan }: Props) {
 
   useEffect(() => {
     let cancelled = false;
+    setDestinationAirport(null);
     if (!destinationIcao) {
-      setDestinationAirport(null);
       return;
     }
     void fetchAirportData(destinationIcao).then((data) => {
@@ -1309,6 +1315,26 @@ export function BriefingPanel({ plan }: Props) {
 
   return (
     <section id="briefing" className="space-y-4 lg:space-y-6">
+      <PerformancePanel
+        user={user}
+        departure={{
+          icao: departureIcao,
+          elevationFt: departureAirport?.elevationFt ?? null,
+          runways: departureAirport?.runways ?? [],
+          suggestedRunway: resolvedDepartureRunway,
+          weather: departureWeather,
+          wind: departureWind,
+        }}
+        arrival={{
+          icao: destinationIcao,
+          elevationFt: destinationAirport?.elevationFt ?? null,
+          runways: destinationAirport?.runways ?? [],
+          suggestedRunway:
+            form.destinationRunway || destinationRunwaySuggestion?.id || "",
+          weather: destinationWeather,
+          wind: destinationWind,
+        }}
+      />
       <Card>
         <CardHeader className="border-b border-border bg-panel-muted px-4 py-3">
           <div className="flex flex-wrap items-center justify-between gap-3">

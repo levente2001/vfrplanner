@@ -27,6 +27,7 @@ export type BriefingWeather = {
   rawTaf?: string | null;
   tafSegments?: Array<{
     type: string;
+    probability?: number | null;
     from: string | null;
     to: string | null;
     wind: {

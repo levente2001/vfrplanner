@@ -7,6 +7,7 @@ import "./styles.css";
 import { AuthPanel } from "../AuthPanel";
 import { BriefingPanel } from "../BriefingPanel";
 import AircraftsPanel from "@/flightlogger/AircraftsPanel";
+import { AircraftLibraryPanel } from "@/aircraft/AircraftLibraryPanel";
 import FlightLoggerPanel from "@/flightlogger/FlightLoggerPanel";
 import { NotamPanel } from "../NotamPanel";
 import { PlannerPanel, type RouteStats } from "../PlannerPanel";
@@ -35,7 +36,8 @@ type ViewId =
   | "notams"
   | "wb"
   | "flightlogger"
-  | "aircrafts";
+  | "aircrafts"
+  | "my-aircraft";
 
 const navItems: Array<{
   id: ViewId;
@@ -43,35 +45,38 @@ const navItems: Array<{
   label: string;
   icon: LucideIcon;
   isNew?: boolean;
+  isBeta?: boolean;
 }> = [
   { id: "planner", href: "#planner", label: "Planner", icon: Map },
+  { id: "my-aircraft", href: "#my-aircraft", label: "My aircraft", icon: Plane },
   {
     id: "briefing",
     href: "#briefing",
     label: "Briefing",
     icon: FileText,
     isNew: true,
+    isBeta: true,
   },
   {
     id: "flightlogger",
     href: "#flightlogger",
     label: "FlightLogger",
     icon: CalendarDays,
-    isNew: true,
+    isNew: false,
   },
   {
     id: "aircrafts",
     href: "#aircrafts",
     label: "Aircrafts",
     icon: Plane,
-    isNew: true,
+    isNew: false,
   },
   {
     id: "weather",
     href: "#weather",
     label: "AVWeather",
     icon: CloudSun,
-    isNew: true,
+    isNew: false,
   },
   { id: "notams", href: "#notams", label: "NOTAMs", icon: FileWarning },
   { id: "wb", href: "#wb", label: "Weight & Balance", icon: Scale },
@@ -167,9 +172,14 @@ function App() {
               >
                 <Icon className="size-4" />
                 {item.label}
-                {item.isNew && (
-                  <span className="ml-auto rounded-sm bg-primary px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-normal text-primary-foreground">
-                    new
+                {(item.isNew || item.isBeta) && (
+                  <span className="ml-auto flex shrink-0 items-center gap-1 text-[9px] font-semibold uppercase tracking-normal">
+                    {item.isNew && (
+                      <span className="rounded-sm bg-primary px-1.5 py-0.5 text-primary-foreground">new</span>
+                    )}
+                    {item.isBeta && (
+                      <span className="rounded-sm bg-amber-100 px-1.5 py-0.5 text-amber-800">beta</span>
+                    )}
                   </span>
                 )}
               </a>
@@ -226,9 +236,14 @@ function App() {
                       >
                         <Icon className="size-4" />
                         {item.label}
-                        {item.isNew && (
-                          <span className="ml-auto rounded-sm bg-primary px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-normal text-primary-foreground">
-                            new
+                        {(item.isNew || item.isBeta) && (
+                          <span className="ml-auto flex shrink-0 items-center gap-1 text-[9px] font-semibold uppercase tracking-normal">
+                            {item.isNew && (
+                              <span className="rounded-sm bg-primary px-1.5 py-0.5 text-primary-foreground">new</span>
+                            )}
+                            {item.isBeta && (
+                              <span className="rounded-sm bg-amber-100 px-1.5 py-0.5 text-amber-800">beta</span>
+                            )}
                           </span>
                         )}
                       </a>
@@ -274,7 +289,7 @@ function App() {
             />
           </div>
           <div hidden={activeView !== "briefing"}>
-            <BriefingPanel plan={flightPlan} />
+            <BriefingPanel plan={flightPlan} user={user} />
           </div>
           <div hidden={activeView !== "weather"}>
             <WeatherPanel />
@@ -284,6 +299,9 @@ function App() {
           </div>
           <div hidden={activeView !== "aircrafts"}>
             <AircraftsPanel user={user} />
+          </div>
+          <div hidden={activeView !== "my-aircraft"}>
+            <AircraftLibraryPanel user={user} />
           </div>
           <div hidden={activeView !== "notams"}>
             <NotamPanel waypoints={routeWaypoints} />

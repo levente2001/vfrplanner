@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import "./performance.test";
+import "./pohImport.test";
 import {
   applyMagneticVariation,
   computeLegs,
