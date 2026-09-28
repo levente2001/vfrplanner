@@ -34,6 +34,7 @@ import {
   NAVLOG_WAYPOINT_LIMIT,
   navlogFuelSummary,
   navlogMinutesText,
+  type NavlogType,
 } from "@/lib/xlsx/navlog";
 import { Alert, AlertDescription } from "@/ui/alert";
 import { Badge } from "@/ui/badge";
@@ -238,8 +239,8 @@ function TrainerNavlogTable({
 
       {isExportLimited && (
         <p className="text-xs text-muted-foreground">
-          All waypoints and legs are shown above. The Excel export template is limited to
-          the first {NAVLOG_LEG_LIMIT} legs and {NAVLOG_WAYPOINT_LIMIT} waypoints.
+          Excel export supports up to {NAVLOG_WAYPOINT_LIMIT} waypoints and{" "}
+          {NAVLOG_LEG_LIMIT} legs. Reduce or split the route before exporting.
         </p>
       )}
     </div>
@@ -286,6 +287,7 @@ export function PlannerPanel({
   const [selectedPlanId, setSelectedPlanId] = useState("");
   const [planName, setPlanName] = useState("Local flight");
   const [showTrainerNavlog, setShowTrainerNavlog] = useState(false);
+  const [navlogType, setNavlogType] = useState<NavlogType>("VFR");
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -558,6 +560,9 @@ export function PlannerPanel({
         totalFuel: result.totalFuel,
         fuelUnit,
         fuelUnitLabel: fuelUnitLabel[fuelUnit],
+        navlogType,
+        windDirection: numeric.windDir,
+        windSpeed: numeric.windSpeed,
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Navigation log export failed.");
@@ -985,6 +990,25 @@ export function PlannerPanel({
               <Plane className="size-4" />
               Calculate route
             </Button>
+            <div className="space-y-2">
+              <Label htmlFor="navlogType">Navlog export format</Label>
+              <Select
+                value={navlogType}
+                onValueChange={(value) => setNavlogType(value as NavlogType)}
+              >
+                <SelectTrigger id="navlogType" className="flight-input">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="VFR">VFR navlog</SelectItem>
+                  <SelectItem value="IFR">IFR navlog</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="flight-help">
+                Both Excel formats support up to {NAVLOG_WAYPOINT_LIMIT} waypoints and{" "}
+                {NAVLOG_LEG_LIMIT} legs.
+              </p>
+            </div>
             <Button
               className="w-full"
               variant="outline"
@@ -992,7 +1016,9 @@ export function PlannerPanel({
               disabled={!result.legs.length || exporting}
             >
               <Download className="size-4" />
-              {exporting ? "Exporting navlog" : "Export navlog"}
+              {exporting
+                ? "Exporting " + navlogType + " navlog"
+                : "Export " + navlogType + " navlog"}
             </Button>
             {error && (
               <Alert variant="destructive" id="routeAlert">

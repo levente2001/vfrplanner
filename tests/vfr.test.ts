@@ -33,6 +33,11 @@ import {
   isStale,
   parseVisibilitySm,
 } from "../src/lib/weather/category";
+import {
+  buildNavlogXlsxBytes,
+  NAVLOG_LEG_LIMIT,
+  NAVLOG_WAYPOINT_LIMIT,
+} from "../src/lib/xlsx/navlog";
 import { adaptAviationWeather } from "../src/lib/weather/providers/aviationWeather";
 
 function close(actual: number, expected: number, tolerance = 0.25) {
@@ -344,5 +349,59 @@ assert.equal(adapted[0]!.wind.direction, "VRB");
 assert.equal(adapted[0]!.ceilingFt, 3500);
 assert.equal(adapted[0]!.category, "VFR");
 assert.equal(adapted[0]!.tafSegments[0]!.type, "BASE");
+
+assert.equal(NAVLOG_WAYPOINT_LIMIT, 15);
+assert.equal(NAVLOG_LEG_LIMIT, 14);
+const exportWaypoints: WaypointMeta[] = Array.from({ length: 15 }, (_, index) => ({
+  label: `WP${index + 1}`,
+  lat: 47 + index * 0.01,
+  lon: 19 + index * 0.01,
+}));
+const exportLegs = computeLegs(
+  exportWaypoints.map((waypoint) => ({ lat: waypoint.lat, lng: waypoint.lon })),
+  exportWaypoints,
+  {
+    tas: 100,
+    fuelFlow: 8,
+    windDir: 270,
+    windSpeed: 15,
+    variationValue: 5,
+    variationDirection: "E",
+  },
+).legs;
+const exportBase = {
+  waypoints: exportWaypoints,
+  legs: exportLegs,
+  totalDistance: exportLegs.reduce((sum, leg) => sum + leg.distance, 0),
+  totalTime: exportLegs.reduce((sum, leg) => sum + (leg.ete ?? 0), 0),
+  totalFuel: exportLegs.reduce((sum, leg) => sum + (leg.fuel ?? 0), 0),
+  fuelUnit: "USG" as const,
+  fuelUnitLabel: "US gal",
+  windDirection: 270,
+  windSpeed: 15,
+};
+const ifrNavlogText = new TextDecoder().decode(
+  buildNavlogXlsxBytes({ ...exportBase, navlogType: "IFR" }),
+);
+assert.match(ifrNavlogText, /WP15/);
+assert.match(ifrNavlogText, /Mag\. HDG/);
+assert.match(ifrNavlogText, /121\.500/);
+const vfrNavlogText = new TextDecoder().decode(
+  buildNavlogXlsxBytes({ ...exportBase, navlogType: "VFR" }),
+);
+assert.match(vfrNavlogText, /VFR NAVIGATION LOG/);
+assert.match(vfrNavlogText, /WP15/);
+assert.throws(
+  () =>
+    buildNavlogXlsxBytes({
+      ...exportBase,
+      waypoints: [
+        ...exportWaypoints,
+        { label: "WP16", lat: 47.16, lon: 19.16 },
+      ],
+      navlogType: "VFR",
+    }),
+  /up to 15 waypoints and 14 legs/,
+);
 
 console.log("vfrplanner formula tests passed");
