@@ -406,7 +406,6 @@ function buildIfrSheet(input: NavlogExportInput) {
     set(cells, `A${top}`, input.waypoints[i]?.label ?? "", 7);
   }
 
-  const wv = windVector(input);
   for (let i = 0; i < NAVLOG_LEG_LIMIT; i++) {
     const top = 6 + i * 2;
     const bottom = top + 1;
