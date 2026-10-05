@@ -550,6 +550,11 @@ export function PlannerPanel({
       if (!Number.isFinite(value)) return current;
       return convertFuelUnit(value, fuelUnit, nextUnit).toFixed(1);
     });
+    setClimbFuelFlow((current) => {
+      const value = parseFloat(current);
+      if (!Number.isFinite(value)) return current;
+      return convertFuelUnit(value, fuelUnit, nextUnit).toFixed(1);
+    });
     setFuelUnit(nextUnit);
   }, [fuelUnit]);
 
