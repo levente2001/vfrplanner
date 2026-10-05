@@ -290,9 +290,17 @@ function set(cells: CellMap, ref: string, value: CellValue, style?: number) {
   cells[ref] = { value, style };
 }
 
-function windVector(input: NavlogExportInput) {
-  const direction = Number.isFinite(input.windDirection) ? Math.round(input.windDirection ?? 0) : 0;
-  const speed = Number.isFinite(input.windSpeed) ? Math.round(input.windSpeed ?? 0) : 0;
+function windVector(input: NavlogExportInput, leg?: Leg) {
+  const direction = Number.isFinite(leg?.windDirection)
+    ? Math.round(leg?.windDirection ?? 0)
+    : Number.isFinite(input.windDirection)
+      ? Math.round(input.windDirection ?? 0)
+      : 0;
+  const speed = Number.isFinite(leg?.windSpeed)
+    ? Math.round(leg?.windSpeed ?? 0)
+    : Number.isFinite(input.windSpeed)
+      ? Math.round(input.windSpeed ?? 0)
+      : 0;
   return `${((direction % 360) + 360) % 360}`.padStart(3, "0") + `/${speed}`;
 }
 
@@ -336,14 +344,13 @@ function buildVfrSheet(input: NavlogExportInput) {
     merges.push(`A${row}:C${row}`);
     set(cells, `A${row}`, input.waypoints[i]?.label ?? "", 7);
   }
-  const wv = windVector(input);
   for (let i = 0; i < NAVLOG_LEG_LIMIT; i++) {
     const row = 6 + i * 2;
     const leg = input.legs[i];
     if (!leg) continue;
     set(cells, `F${row}`, navlogMinutesText(leg.ete));
     set(cells, `G${row}`, Math.round(leg.distance));
-    set(cells, `H${row}`, wv);
+    set(cells, `H${row}`, windVector(input, leg));
     set(cells, `I${row}`, Math.round(leg.magneticCourse));
     set(cells, `J${row}`, Math.round(leg.wca));
     set(cells, `K${row}`, Math.round(leg.trueCourse));
@@ -409,7 +416,7 @@ function buildIfrSheet(input: NavlogExportInput) {
     set(cells, `F${top}`, navlogMinutesText(leg.ete));
     set(cells, `G${top}`, Math.round(leg.distance));
     set(cells, `H${top}`, Math.round(leg.magneticHeading));
-    set(cells, `I${top}`, wv);
+    set(cells, `I${top}`, windVector(input, leg));
     set(cells, `J${top}`, Math.round(leg.magneticCourse));
   }
   merges.push("H34:L34");
