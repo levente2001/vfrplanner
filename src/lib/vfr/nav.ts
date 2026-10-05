@@ -19,6 +19,16 @@ export type WaypointMeta = {
   replacedInputIndex?: number;
 };
 
+export type LegPlanningInput = {
+  altitudeFt?: number;
+  tas?: number;
+  windDir?: number;
+  windSpeed?: number;
+  climbRateFpm?: number;
+  climbFuelFlow?: number;
+  startAltitudeFt?: number;
+};
+
 type NumericPlan = {
   tas: number;
   fuelFlow: number;
@@ -26,6 +36,7 @@ type NumericPlan = {
   windSpeed: number;
   variationValue: number;
   variationDirection: "E" | "W";
+  legs?: LegPlanningInput[];
 };
 
 export type Leg = {
@@ -43,6 +54,13 @@ export type Leg = {
   groundSpeed: number | null;
   fuel: number | null;
   tas: number;
+  altitudeFt: number;
+  windDirection: number;
+  windSpeed: number;
+  climbTime: number;
+  cruiseTime: number;
+  climbFuel: number;
+  cruiseFuel: number;
   error?: string;
 };
 
@@ -590,10 +608,28 @@ export function computeLegs(
       n.variationDirection,
     );
 
+    const legPlan = n.legs?.[i];
+    const tas =
+      legPlan?.tas != null && Number.isFinite(legPlan.tas) && legPlan.tas > 0
+        ? legPlan.tas
+        : n.tas;
+    const windDirection =
+      legPlan?.windDir != null && Number.isFinite(legPlan.windDir)
+        ? ((legPlan.windDir % 360) + 360) % 360
+        : n.windDir;
+    const windSpeed =
+      legPlan?.windSpeed != null && Number.isFinite(legPlan.windSpeed)
+        ? Math.max(0, legPlan.windSpeed)
+        : n.windSpeed;
+    const altitudeFt =
+      legPlan?.altitudeFt != null && Number.isFinite(legPlan.altitudeFt)
+        ? Math.max(0, legPlan.altitudeFt)
+        : 0;
+
     // Aviation wind direction is a FROM bearing. WCA is positive when the pilot must steer right.
-    const relativeWindAngle = degToRad(n.windDir - trueCourse);
+    const relativeWindAngle = degToRad(windDirection - trueCourse);
     const asinArg = clamp(
-      (n.windSpeed / n.tas) * Math.sin(relativeWindAngle),
+      (windSpeed / tas) * Math.sin(relativeWindAngle),
       -1,
       1,
     );
@@ -601,10 +637,35 @@ export function computeLegs(
     const trueHeading = normalizeHeading(trueCourse + wca);
     const magneticHeading = normalizeHeading(trueHeading - signedVariation);
     const groundSpeed =
-      n.tas * Math.cos(degToRad(wca)) -
-      n.windSpeed * Math.cos(relativeWindAngle);
+      tas * Math.cos(degToRad(wca)) -
+      windSpeed * Math.cos(relativeWindAngle);
     const validGs = Number.isFinite(groundSpeed) && groundSpeed > 0;
     const ete = validGs ? distance / groundSpeed : null;
+
+    const startAltitudeFt =
+      legPlan?.startAltitudeFt != null && Number.isFinite(legPlan.startAltitudeFt)
+        ? Math.max(0, legPlan.startAltitudeFt)
+        : i > 0
+          ? legs[i - 1]?.altitudeFt ?? altitudeFt
+          : altitudeFt;
+    const climbRateFpm =
+      legPlan?.climbRateFpm != null && Number.isFinite(legPlan.climbRateFpm)
+        ? Math.max(0, legPlan.climbRateFpm)
+        : 0;
+    const climbFuelFlow =
+      legPlan?.climbFuelFlow != null && Number.isFinite(legPlan.climbFuelFlow)
+        ? Math.max(0, legPlan.climbFuelFlow)
+        : n.fuelFlow;
+    const rawClimbTime =
+      climbRateFpm > 0 && altitudeFt > startAltitudeFt
+        ? (altitudeFt - startAltitudeFt) / climbRateFpm / 60
+        : 0;
+    const climbTime = ete === null ? 0 : Math.min(ete, rawClimbTime);
+    const cruiseTime = ete === null ? 0 : Math.max(0, ete - climbTime);
+    const climbFuel = climbTime * climbFuelFlow;
+    const cruiseFuel = cruiseTime * n.fuelFlow;
+    const fuel = ete === null ? null : climbFuel + cruiseFuel;
+
     legs.push({
       from: meta[i]?.label ?? `WP${i + 1}`,
       to: meta[i + 1]?.label ?? `WP${i + 2}`,
@@ -618,8 +679,15 @@ export function computeLegs(
       distance,
       ete,
       groundSpeed: validGs ? groundSpeed : null,
-      fuel: ete === null ? null : ete * n.fuelFlow,
-      tas: n.tas,
+      fuel,
+      tas,
+      altitudeFt,
+      windDirection,
+      windSpeed,
+      climbTime,
+      cruiseTime,
+      climbFuel,
+      cruiseFuel,
       error: validGs
         ? undefined
         : "The selected TAS is insufficient for the entered wind conditions.",

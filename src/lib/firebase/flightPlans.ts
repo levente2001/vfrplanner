@@ -13,6 +13,12 @@
 import type { WaypointMeta } from "@/lib/vfr/nav";
 import { getFirebaseServices } from "./client";
 
+export type SavedLegCondition = {
+  altitudeFt: string;
+  windDir: string;
+  windSpeed: string;
+};
+
 export type FlightPlanPayload = {
   name: string;
   waypointText: string;
@@ -24,6 +30,11 @@ export type FlightPlanPayload = {
   windSpeed: string;
   variationValue: string;
   variationDirection: "E" | "W";
+  legConditions: SavedLegCondition[];
+  pohTasTable: string;
+  departureAltitude: string;
+  climbRate: string;
+  climbFuelFlow: string;
 };
 
 export type SavedFlightPlan = FlightPlanPayload & {
@@ -50,6 +61,19 @@ function fromDoc(id: string, data: DocumentData): SavedFlightPlan {
     windSpeed: typeof data.windSpeed === "string" ? data.windSpeed : "10",
     variationValue: typeof data.variationValue === "string" ? data.variationValue : "5",
     variationDirection: data.variationDirection === "W" ? "W" : "E",
+    legConditions: Array.isArray(data.legConditions)
+      ? data.legConditions.map((item: DocumentData) => ({
+          altitudeFt: typeof item?.altitudeFt === "string" ? item.altitudeFt : "",
+          windDir: typeof item?.windDir === "string" ? item.windDir : "",
+          windSpeed: typeof item?.windSpeed === "string" ? item.windSpeed : "",
+        }))
+      : [],
+    pohTasTable: typeof data.pohTasTable === "string" ? data.pohTasTable : "",
+    departureAltitude:
+      typeof data.departureAltitude === "string" ? data.departureAltitude : "0",
+    climbRate: typeof data.climbRate === "string" ? data.climbRate : "500",
+    climbFuelFlow:
+      typeof data.climbFuelFlow === "string" ? data.climbFuelFlow : data.fuelFlow ?? "8",
     updatedAt: data.updatedAt,
   };
 }
