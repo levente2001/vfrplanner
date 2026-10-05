@@ -66,6 +66,59 @@ const L_TO_US_GAL = 0.2641720524;
 
 type FuelUnit = "L" | "USG";
 
+type LegCondition = {
+  altitudeFt: string;
+  windDir: string;
+  windSpeed: string;
+};
+
+type PohTasPoint = {
+  altitudeFt: number;
+  tasKt: number;
+};
+
+function parsePohTasTable(value: string): { points: PohTasPoint[]; error: string } {
+  if (!value.trim()) return { points: [], error: "" };
+  const points: PohTasPoint[] = [];
+  const seen = new Set<number>();
+  const lines = value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  for (let index = 0; index < lines.length; index++) {
+    const cells = lines[index]!.split(/[\s,;:=]+/).filter(Boolean);
+    if (cells.length !== 2) {
+      return { points: [], error: `POH TAS row ${index + 1}: use "altitude ft, TAS kt".` };
+    }
+    const altitudeFt = Number(cells[0]);
+    const tasKt = Number(cells[1]);
+    if (!Number.isFinite(altitudeFt) || altitudeFt < 0 || !Number.isFinite(tasKt) || tasKt <= 0) {
+      return { points: [], error: `POH TAS row ${index + 1}: enter a valid altitude and positive TAS.` };
+    }
+    if (seen.has(altitudeFt)) {
+      return { points: [], error: `POH TAS row ${index + 1}: duplicate altitude.` };
+    }
+    seen.add(altitudeFt);
+    points.push({ altitudeFt, tasKt });
+  }
+  points.sort((a, b) => a.altitudeFt - b.altitudeFt);
+  return { points, error: "" };
+}
+
+function pohTasAtAltitude(points: PohTasPoint[], altitudeFt: number) {
+  if (!points.length) return null;
+  const exact = points.find((point) => point.altitudeFt === altitudeFt);
+  if (exact) return exact.tasKt;
+  const low = [...points].reverse().find((point) => point.altitudeFt < altitudeFt);
+  const high = points.find((point) => point.altitudeFt > altitudeFt);
+  if (!low || !high) return null;
+  const factor = (altitudeFt - low.altitudeFt) / (high.altitudeFt - low.altitudeFt);
+  return low.tasKt + (high.tasKt - low.tasKt) * factor;
+}
+
+function numberOr(value: string | undefined, fallback: number) {
+  if (value == null || !value.trim()) return fallback;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 const fuelUnitLabel: Record<FuelUnit, string> = {
   L: "L",
   USG: "US gal",
@@ -277,6 +330,11 @@ export function PlannerPanel({
   const [fuelUnit, setFuelUnit] = useState<FuelUnit>("USG");
   const [windDir, setWindDir] = useState("270");
   const [windSpeed, setWindSpeed] = useState("0");
+  const [legConditions, setLegConditions] = useState<LegCondition[]>([]);
+  const [pohTasTable, setPohTasTable] = useState("");
+  const [departureAltitude, setDepartureAltitude] = useState("0");
+  const [climbRate, setClimbRate] = useState("500");
+  const [climbFuelFlow, setClimbFuelFlow] = useState("8");
   const [variationValue, setVariationValue] = useState("6");
   const [variationDirection, setVariationDirection] = useState<"E" | "W">("E");
   const [error, setError] = useState("");
@@ -319,22 +377,54 @@ export function PlannerPanel({
       fuelFlow: parseFloat(fuelFlow) || 0,
       windDir: (parseFloat(windDir) || 0) % 360,
       windSpeed: parseFloat(windSpeed) || 0,
+      departureAltitude: parseFloat(departureAltitude) || 0,
+      climbRate: parseFloat(climbRate) || 0,
+      climbFuelFlow: parseFloat(climbFuelFlow) || 0,
       variationValue: parseFloat(variationValue) || 0,
       variationDirection,
     }),
-    [tas, fuelFlow, windDir, windSpeed, variationValue, variationDirection],
+    [
+      tas,
+      fuelFlow,
+      windDir,
+      windSpeed,
+      departureAltitude,
+      climbRate,
+      climbFuelFlow,
+      variationValue,
+      variationDirection,
+    ],
   );
+
+  const pohSchedule = useMemo(() => parsePohTasTable(pohTasTable), [pohTasTable]);
 
   const result = useMemo(() => {
     if (waypoints.length < 2) {
       return { legs: [], totalDistance: 0, totalTime: 0, totalFuel: 0 };
     }
+    let previousAltitude = Math.max(0, numeric.departureAltitude);
+    const legs = waypoints.slice(0, -1).map((_, index) => {
+      const condition = legConditions[index];
+      const altitudeFt = Math.max(0, numberOr(condition?.altitudeFt, previousAltitude));
+      const legTas = pohTasAtAltitude(pohSchedule.points, altitudeFt) ?? numeric.tas;
+      const item = {
+        altitudeFt,
+        tas: legTas,
+        windDir: numberOr(condition?.windDir, numeric.windDir),
+        windSpeed: Math.max(0, numberOr(condition?.windSpeed, numeric.windSpeed)),
+        climbRateFpm: Math.max(0, numeric.climbRate),
+        climbFuelFlow: Math.max(0, numeric.climbFuelFlow),
+        startAltitudeFt: previousAltitude,
+      };
+      previousAltitude = altitudeFt;
+      return item;
+    });
     return computeLegs(
       waypoints.map((w) => ({ lat: w.lat, lng: w.lon })),
       waypoints,
-      numeric,
+      { ...numeric, legs },
     );
-  }, [waypoints, numeric]);
+  }, [waypoints, numeric, legConditions, pohSchedule.points]);
 
   useEffect(() => {
     onStats({
@@ -344,7 +434,9 @@ export function PlannerPanel({
         ? `${result.totalFuel.toFixed(1)} ${fuelUnitLabel[fuelUnit]}`
         : "—",
       wind: result.legs.length
-        ? `${Math.round(numeric.windDir)}° / ${Math.round(numeric.windSpeed)} kt`
+        ? legConditions.some((condition) => condition?.windDir.trim() || condition?.windSpeed.trim())
+          ? "Per leg"
+          : `${Math.round(numeric.windDir)}° / ${Math.round(numeric.windSpeed)} kt`
         : "—",
     });
   }, [result, numeric, fuelUnit, onStats]);
@@ -461,6 +553,20 @@ export function PlannerPanel({
     setFuelUnit(nextUnit);
   }, [fuelUnit]);
 
+  const updateLegCondition = useCallback(
+    (index: number, field: keyof LegCondition, value: string) => {
+      setLegConditions((current) => {
+        const next = [...current];
+        while (next.length <= index) {
+          next.push({ altitudeFt: "", windDir: "", windSpeed: "" });
+        }
+        next[index] = { ...next[index]!, [field]: value };
+        return next;
+      });
+    },
+    [],
+  );
+
   function validate() {
     if (!text.trim() && waypoints.length < 2) {
       return "Enter at least two waypoints or place at least two markers on the map.";
@@ -470,6 +576,27 @@ export function PlannerPanel({
     if (!windDir.trim() || parseFloat(windDir) < 0 || parseFloat(windDir) > 360)
       return "Wind direction must be between 0 and 360 degrees.";
     if (!windSpeed.trim() || numeric.windSpeed < 0) return "Wind speed cannot be negative.";
+    if (numeric.departureAltitude < 0) return "Departure altitude cannot be negative.";
+    if (numeric.climbRate < 0) return "Climb rate cannot be negative.";
+    if (numeric.climbFuelFlow < 0) return "Climb fuel flow cannot be negative.";
+    if (pohSchedule.error) return pohSchedule.error;
+    for (let index = 0; index < legConditions.length; index++) {
+      const condition = legConditions[index]!;
+      if (condition.altitudeFt.trim() && Number(condition.altitudeFt) < 0)
+        return `Leg ${index + 1}: altitude cannot be negative.`;
+      if (
+        condition.windDir.trim() &&
+        (!Number.isFinite(Number(condition.windDir)) ||
+          Number(condition.windDir) < 0 ||
+          Number(condition.windDir) > 360)
+      )
+        return `Leg ${index + 1}: wind direction must be between 0 and 360 degrees.`;
+      if (
+        condition.windSpeed.trim() &&
+        (!Number.isFinite(Number(condition.windSpeed)) || Number(condition.windSpeed) < 0)
+      )
+        return `Leg ${index + 1}: wind speed cannot be negative.`;
+    }
     if (
       !variationValue.trim() ||
       numeric.variationValue < 0 ||
@@ -583,6 +710,11 @@ export function PlannerPanel({
       windSpeed,
       variationValue,
       variationDirection,
+      legConditions,
+      pohTasTable,
+      departureAltitude,
+      climbRate,
+      climbFuelFlow,
     };
   }
 
@@ -617,6 +749,11 @@ export function PlannerPanel({
     setFuelUnit(plan.fuelUnit);
     setWindDir(plan.windDir);
     setWindSpeed(plan.windSpeed);
+    setLegConditions(plan.legConditions ?? []);
+    setPohTasTable(plan.pohTasTable ?? "");
+    setDepartureAltitude(plan.departureAltitude ?? "0");
+    setClimbRate(plan.climbRate ?? "500");
+    setClimbFuelFlow(plan.climbFuelFlow ?? plan.fuelFlow);
     setVariationValue(plan.variationValue);
     setVariationDirection(plan.variationDirection);
     setFitKey((k) => k + 1);
