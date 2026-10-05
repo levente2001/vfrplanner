@@ -880,12 +880,17 @@ export function PlannerPanel({
                     {[
                       "Leg",
                       "Distance",
+                      "Alt",
+                      "Wind",
+                      "TAS",
                       "TC",
                       "MC",
                       "WCA",
                       "MH",
                       "GS",
                       "ETE",
+                      "Climb fuel",
+                      "Cruise fuel",
                       "Trip fuel",
                     ].map((h) => (
                       <TableHead
@@ -906,6 +911,43 @@ export function PlannerPanel({
                       <TableCell className="px-3 py-2.5">
                         {leg.distance.toFixed(1)} NM
                       </TableCell>
+                      <TableCell className="min-w-[105px] px-2 py-2">
+                        <Input
+                          aria-label={`Leg ${i + 1} altitude feet`}
+                          type="number"
+                          min="0"
+                          placeholder={i === 0 ? departureAltitude : "prev."}
+                          value={legConditions[i]?.altitudeFt ?? ""}
+                          onChange={(e) => updateLegCondition(i, "altitudeFt", e.target.value)}
+                          className="h-8 font-mono text-xs"
+                        />
+                      </TableCell>
+                      <TableCell className="min-w-[145px] px-2 py-2">
+                        <div className="grid grid-cols-2 gap-1">
+                          <Input
+                            aria-label={`Leg ${i + 1} wind direction`}
+                            type="number"
+                            min="0"
+                            max="360"
+                            placeholder={String(Math.round(numeric.windDir))}
+                            value={legConditions[i]?.windDir ?? ""}
+                            onChange={(e) => updateLegCondition(i, "windDir", e.target.value)}
+                            className="h-8 font-mono text-xs"
+                          />
+                          <Input
+                            aria-label={`Leg ${i + 1} wind speed knots`}
+                            type="number"
+                            min="0"
+                            placeholder={String(Math.round(numeric.windSpeed))}
+                            value={legConditions[i]?.windSpeed ?? ""}
+                            onChange={(e) => updateLegCondition(i, "windSpeed", e.target.value)}
+                            className="h-8 font-mono text-xs"
+                          />
+                        </div>
+                      </TableCell>
+                      <TableCell className="px-3 py-2.5 text-primary">
+                        {leg.tas.toFixed(0)} kt
+                      </TableCell>
                       <TableCell className="px-3 py-2.5 text-primary">{leg.trueCourse.toFixed(0)}°</TableCell>
                       <TableCell className="px-3 py-2.5 text-primary">
                         {leg.magneticCourse.toFixed(0)}°
@@ -921,6 +963,12 @@ export function PlannerPanel({
                         {leg.ete === null ? leg.error : `${Math.round(leg.ete * 60)} min`}
                       </TableCell>
                       <TableCell className="px-3 py-2.5 text-muted-foreground">
+                        {leg.climbFuel.toFixed(1)} {fuelUnitLabel[fuelUnit]}
+                      </TableCell>
+                      <TableCell className="px-3 py-2.5 text-muted-foreground">
+                        {leg.cruiseFuel.toFixed(1)} {fuelUnitLabel[fuelUnit]}
+                      </TableCell>
+                      <TableCell className="px-3 py-2.5 text-muted-foreground">
                         {leg.fuel === null
                           ? "—"
                           : `${leg.fuel.toFixed(1)} ${fuelUnitLabel[fuelUnit]}`}
@@ -932,12 +980,18 @@ export function PlannerPanel({
                   <TableRow>
                     <TableCell className="px-2 py-2.5">Total</TableCell>
                     <TableCell className="px-2 py-2.5">{result.totalDistance.toFixed(1)} NM</TableCell>
-                    <TableCell className="px-2 py-2.5" colSpan={3}>
+                    <TableCell className="px-2 py-2.5" colSpan={6}>
                       {numeric.variationValue.toFixed(1)}° {variationDirection}
                     </TableCell>
                     <TableCell className="px-2 py-2.5" />
                     <TableCell className="px-2 py-2.5" />
                     <TableCell className="px-2 py-2.5">{Math.round(result.totalTime * 60)} min</TableCell>
+                    <TableCell className="px-2 py-2.5">
+                      {result.legs.reduce((sum, leg) => sum + leg.climbFuel, 0).toFixed(1)} {fuelUnitLabel[fuelUnit]}
+                    </TableCell>
+                    <TableCell className="px-2 py-2.5">
+                      {result.legs.reduce((sum, leg) => sum + leg.cruiseFuel, 0).toFixed(1)} {fuelUnitLabel[fuelUnit]}
+                    </TableCell>
                     <TableCell className="px-2 py-2.5">
                       {result.totalFuel.toFixed(1)} {fuelUnitLabel[fuelUnit]}
                     </TableCell>
@@ -1118,6 +1172,71 @@ export function PlannerPanel({
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+            <div className="space-y-3 border-t border-border pt-4">
+              <div className="space-y-2">
+                <Label className="flight-label" htmlFor="pohTasTable">
+                  POH TAS schedule
+                </Label>
+                <Textarea
+                  id="pohTasTable"
+                  value={pohTasTable}
+                  onChange={(e) => setPohTasTable(e.target.value)}
+                  className="flight-textarea min-h-24 font-mono text-xs"
+                  placeholder={"2000, 95\n4000, 98\n6000, 101"}
+                />
+                <p className="flight-help">
+                  Enter verified POH values as altitude ft, TAS kt. TAS is linearly interpolated
+                  only between entered POH rows; outside that range the manual Cruise TAS is used.
+                </p>
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="space-y-2">
+                  <Label className="flight-label" htmlFor="departureAltitude">
+                    Departure alt (ft)
+                  </Label>
+                  <Input
+                    id="departureAltitude"
+                    type="number"
+                    min="0"
+                    value={departureAltitude}
+                    onChange={(e) => setDepartureAltitude(e.target.value)}
+                    className="flight-input"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="flight-label" htmlFor="climbRate">
+                    Climb rate (ft/min)
+                  </Label>
+                  <Input
+                    id="climbRate"
+                    type="number"
+                    min="0"
+                    value={climbRate}
+                    onChange={(e) => setClimbRate(e.target.value)}
+                    className="flight-input"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="flight-label" htmlFor="climbFuelFlow">
+                    Climb F.f. ({fuelUnitLabel[fuelUnit]}/h)
+                  </Label>
+                  <Input
+                    id="climbFuelFlow"
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    value={climbFuelFlow}
+                    onChange={(e) => setClimbFuelFlow(e.target.value)}
+                    className="flight-input"
+                  />
+                </div>
+              </div>
+              <p className="flight-help">
+                Set altitude and forecast wind for each leg in the Leg breakdown table. Blank leg
+                wind fields use the default wind above. Climb fuel is calculated from altitude
+                gain and climb rate; descent is included in cruise fuel.
+              </p>
             </div>
             <p className="flight-help">
               Enter the declination magnitude, then select East or West. East is subtracted from
