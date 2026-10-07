@@ -380,12 +380,13 @@ const exportBase = {
   windDirection: 270,
   windSpeed: 15,
 };
-const ifrNavlogText = new TextDecoder().decode(
-  buildNavlogXlsxBytes({ ...exportBase, navlogType: "IFR" }),
+const cplNavlogText = new TextDecoder().decode(
+  buildNavlogXlsxBytes({ ...exportBase, navlogType: "CPL" }),
 );
-assert.match(ifrNavlogText, /WP15/);
-assert.match(ifrNavlogText, /Mag\. HDG/);
-assert.match(ifrNavlogText, /121\.500/);
+assert.match(cplNavlogText, /CPL NAVIGATION LOG/);
+assert.match(cplNavlogText, /WP15/);
+assert.match(cplNavlogText, /Mag\. HDG/);
+assert.match(cplNavlogText, /121\.500/);
 const vfrNavlogText = new TextDecoder().decode(
   buildNavlogXlsxBytes({ ...exportBase, navlogType: "VFR" }),
 );
