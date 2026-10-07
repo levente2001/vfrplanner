@@ -78,3 +78,9 @@
   to = "/.netlify/functions/terrain-msa"
   status = 200
   force = true
+
+[[redirects]]
+  from = "/api/aircraft-document"
+  to = "/.netlify/functions/aircraft-document"
+  status = 200
+  force = true
