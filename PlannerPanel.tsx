@@ -7,7 +7,7 @@ import {
   useMemo,
   useState,
 } from "react";
-import { ArrowDown, ArrowUp, Download, Plane, Minus, Plus } from "lucide-react";
+import { ArrowDown, ArrowUp, Download, GripVertical, Plane, Minus, Plus } from "lucide-react";
 import type { User } from "firebase/auth";
 import {
   deleteFlightPlan,
@@ -68,6 +68,8 @@ type FuelUnit = "L" | "USG";
 
 type LegCondition = {
   altitudeFt: string;
+  tas: string;
+  fuelFlow: string;
   windDir: string;
   windSpeed: string;
 };
@@ -117,6 +119,10 @@ function numberOr(value: string | undefined, fallback: number) {
   if (value == null || !value.trim()) return fallback;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function threeDigitTrack(value: number) {
+  return String(((Math.round(value) % 360) + 360) % 360).padStart(3, "0");
 }
 
 const fuelUnitLabel: Record<FuelUnit, string> = {
@@ -335,6 +341,12 @@ export function PlannerPanel({
   const [departureAltitude, setDepartureAltitude] = useState("0");
   const [climbRate, setClimbRate] = useState("500");
   const [climbFuelFlow, setClimbFuelFlow] = useState("8");
+  const [alternateFuelMode, setAlternateFuelMode] = useState<"none" | "custom">("none");
+  const [alternateFuel, setAlternateFuel] = useState("0");
+  const [activeLegIndex, setActiveLegIndex] = useState(0);
+  const [draggedWaypointIndex, setDraggedWaypointIndex] = useState<number | null>(null);
+  const [terrainMsa, setTerrainMsa] = useState<Array<number | null>>([]);
+  const [msaStatus, setMsaStatus] = useState("");
   const [variationValue, setVariationValue] = useState("6");
   const [variationDirection, setVariationDirection] = useState<"E" | "W">("E");
   const [error, setError] = useState("");
@@ -406,10 +418,12 @@ export function PlannerPanel({
     const legs = waypoints.slice(0, -1).map((_, index) => {
       const condition = legConditions[index];
       const altitudeFt = Math.max(0, numberOr(condition?.altitudeFt, previousAltitude));
-      const legTas = pohTasAtAltitude(pohSchedule.points, altitudeFt) ?? numeric.tas;
+      const pohTas = pohTasAtAltitude(pohSchedule.points, altitudeFt) ?? numeric.tas;
+      const legTas = Math.max(0, numberOr(condition?.tas, pohTas));
       const item = {
         altitudeFt,
         tas: legTas,
+        fuelFlow: Math.max(0, numberOr(condition?.fuelFlow, numeric.fuelFlow)),
         windDir: numberOr(condition?.windDir, numeric.windDir),
         windSpeed: Math.max(0, numberOr(condition?.windSpeed, numeric.windSpeed)),
         climbRateFpm: Math.max(0, numeric.climbRate),
@@ -563,7 +577,7 @@ export function PlannerPanel({
       setLegConditions((current) => {
         const next = [...current];
         while (next.length <= index) {
-          next.push({ altitudeFt: "", windDir: "", windSpeed: "" });
+          next.push({ altitudeFt: "", tas: "", fuelFlow: "", windDir: "", windSpeed: "" });
         }
         next[index] = { ...next[index]!, [field]: value };
         return next;
@@ -589,6 +603,10 @@ export function PlannerPanel({
       const condition = legConditions[index]!;
       if (condition.altitudeFt.trim() && Number(condition.altitudeFt) < 0)
         return `Leg ${index + 1}: altitude cannot be negative.`;
+      if (condition.tas.trim() && (!Number.isFinite(Number(condition.tas)) || Number(condition.tas) <= 0))
+        return `Leg ${index + 1}: TAS must be greater than 0.`;
+      if (condition.fuelFlow.trim() && (!Number.isFinite(Number(condition.fuelFlow)) || Number(condition.fuelFlow) < 0))
+        return `Leg ${index + 1}: fuel flow cannot be negative.`;
       if (
         condition.windDir.trim() &&
         (!Number.isFinite(Number(condition.windDir)) ||
@@ -720,6 +738,8 @@ export function PlannerPanel({
       departureAltitude,
       climbRate,
       climbFuelFlow,
+      alternateFuelMode,
+      alternateFuel,
     };
   }
 
@@ -759,6 +779,8 @@ export function PlannerPanel({
     setDepartureAltitude(plan.departureAltitude ?? "0");
     setClimbRate(plan.climbRate ?? "500");
     setClimbFuelFlow(plan.climbFuelFlow ?? plan.fuelFlow);
+    setAlternateFuelMode(plan.alternateFuelMode ?? "none");
+    setAlternateFuel(plan.alternateFuel ?? "0");
     setVariationValue(plan.variationValue);
     setVariationDirection(plan.variationDirection);
     setFitKey((k) => k + 1);
