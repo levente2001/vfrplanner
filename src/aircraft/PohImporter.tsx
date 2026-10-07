@@ -3,7 +3,6 @@ import { FileSearch, Loader2, RotateCw, X } from "lucide-react";
 import { Button } from "@/ui/button";
 import { AircraftField } from "./fields";
 import { getFirebaseServices } from "@/lib/firebase/client";
-import { documentUrl } from "./repository";
 import { groupPohPages, parsePageSelection } from "./pohAnalysis";
 import { openPoh, renderPohPage, type OpenPoh } from "./pohPdf";
 import type { PohExtractionResult } from "./pohExtraction";
@@ -48,12 +47,24 @@ export default function PohImporter({
         let blob: Blob = file!;
         if (!blob) {
           setProgress("Downloading POH for analysis…");
-          const url = await documentUrl(uid, document);
-          const response = await fetch(url, { signal: controller.signal });
-          if (!response.ok)
+          const user = getFirebaseServices()?.auth.currentUser;
+          if (!user || user.uid !== uid)
+            throw new Error("Sign in again before downloading the POH.");
+          const token = await user.getIdToken();
+          const response = await fetch(
+            `/api/aircraft-document?path=${encodeURIComponent(document.storagePath)}`,
+            {
+              signal: controller.signal,
+              headers: { Authorization: `Bearer ${token}` },
+            },
+          );
+          if (!response.ok) {
+            const result = await response.json().catch(() => null);
             throw new Error(
-              "Could not download the POH. Check document access and Storage CORS configuration.",
+              result?.error ||
+                `Could not download the POH (HTTP ${response.status}).`,
             );
+          }
           blob = await response.blob();
         }
         const next = await openPoh(blob, controller.signal, setProgress);
