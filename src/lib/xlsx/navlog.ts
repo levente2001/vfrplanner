@@ -5,7 +5,7 @@ type ZipEntry = {
   data: Uint8Array;
 };
 
-export type NavlogType = "VFR" | "IFR";
+export type NavlogType = "VFR" | "CPL";
 
 type NavlogExportInput = {
   navlogType?: NavlogType;
@@ -18,6 +18,8 @@ type NavlogExportInput = {
   fuelUnitLabel: string;
   windDirection?: number;
   windSpeed?: number;
+  alternateFuel?: number;
+  msaByLeg?: Array<number | null>;
 };
 
 const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
@@ -136,16 +138,18 @@ function fuelText(value: number, unitLabel: string) {
   return `${value.toFixed(1)} ${unitLabel}`;
 }
 
-export function navlogFuelSummary(input: Pick<NavlogExportInput, "totalFuel" | "fuelUnit" | "fuelUnitLabel">) {
+export function navlogFuelSummary(input: Pick<NavlogExportInput, "totalFuel" | "fuelUnit" | "fuelUnitLabel" | "alternateFuel">) {
   const contingency = input.totalFuel * 0.05;
+  const alternate = Math.max(0, input.alternateFuel ?? 0);
   const reserve = usGallonsToExportUnit(FIXED_FUEL_USG.reserve, input.fuelUnit);
   const extra = usGallonsToExportUnit(FIXED_FUEL_USG.extra, input.fuelUnit);
   const taxi = usGallonsToExportUnit(FIXED_FUEL_USG.taxi, input.fuelUnit);
-  const block = input.totalFuel + contingency + reserve + extra + taxi;
+  const block = input.totalFuel + contingency + alternate + reserve + extra + taxi;
 
   return [
     { label: "trip", value: input.totalFuel, text: fuelText(input.totalFuel, input.fuelUnitLabel) },
     { label: "cont. 5%", value: contingency, text: fuelText(contingency, input.fuelUnitLabel) },
+    { label: "alternate", value: alternate, text: fuelText(alternate, input.fuelUnitLabel) },
     { label: "reserve", value: reserve, text: fuelText(reserve, input.fuelUnitLabel) },
     { label: "extra", value: extra, text: fuelText(extra, input.fuelUnitLabel) },
     { label: "taxi", value: taxi, text: fuelText(taxi, input.fuelUnitLabel) },
@@ -290,6 +294,10 @@ function set(cells: CellMap, ref: string, value: CellValue, style?: number) {
   cells[ref] = { value, style };
 }
 
+function threeDigits(value: number) {
+  return String(((Math.round(value) % 360) + 360) % 360).padStart(3, "0");
+}
+
 function windVector(input: NavlogExportInput, leg?: Leg) {
   const direction = Number.isFinite(leg?.windDirection)
     ? Math.round(leg?.windDirection ?? 0)
@@ -301,7 +309,7 @@ function windVector(input: NavlogExportInput, leg?: Leg) {
     : Number.isFinite(input.windSpeed)
       ? Math.round(input.windSpeed ?? 0)
       : 0;
-  return `${((direction % 360) + 360) % 360}`.padStart(3, "0") + `/${speed}`;
+  return threeDigits(direction) + `/${speed}`;
 }
 
 function validateCapacity(input: NavlogExportInput) {
@@ -351,9 +359,9 @@ function buildVfrSheet(input: NavlogExportInput) {
     set(cells, `F${row}`, navlogMinutesText(leg.ete));
     set(cells, `G${row}`, Math.round(leg.distance));
     set(cells, `H${row}`, windVector(input, leg));
-    set(cells, `I${row}`, Math.round(leg.magneticCourse));
+    set(cells, `I${row}`, threeDigits(leg.magneticCourse));
     set(cells, `J${row}`, Math.round(leg.wca));
-    set(cells, `K${row}`, Math.round(leg.trueCourse));
+    set(cells, `K${row}`, threeDigits(leg.trueCourse));
   }
   merges.push("A34:E34");
   set(cells, "A34", "TOTAL", 7);
@@ -364,15 +372,13 @@ function buildVfrSheet(input: NavlogExportInput) {
   set(cells, "A36", "NAV / COM frequencies & remarks", 5);
   set(cells, "I36", "Fuel calculation", 5);
   const fuel = navlogFuelSummary(input);
-  const fuelRows = [37, 38, 40, 41, 42, 43];
+  const fuelRows = [37, 38, 39, 40, 41, 42, 43];
   fuelRows.forEach((row, i) => {
     merges.push(`I${row}:J${row}`, `K${row}:L${row}`);
     set(cells, `I${row}`, fuel[i]?.label ?? "", i === fuelRows.length - 1 ? 7 : 3);
     set(cells, `K${row}`, fuel[i]?.text ?? "", i === fuelRows.length - 1 ? 7 : 3);
   });
-  merges.push("I39:J39", "K39:L39");
-  set(cells, "I39", "alternate");
-
+  
   const rows: string[] = [];
   for (let row = 1; row <= 43; row++) {
     const height = row === 1 ? 28 : row === 4 ? 30 : 20;
@@ -388,10 +394,10 @@ function buildVfrSheet(input: NavlogExportInput) {
   return worksheetXml(rows, merges, 43);
 }
 
-function buildIfrSheet(input: NavlogExportInput) {
+function buildCplSheet(input: NavlogExportInput) {
   const cells: CellMap = {};
   const merges = commonTopMerges();
-  commonInfo(cells, "NAVIGATION LOG");
+  commonInfo(cells, "CPL NAVIGATION LOG");
   const headers = [
     ["A4", "Waypoint name"], ["D4", "ETO"], ["E4", "ATO"], ["F4", "Leg time"],
     ["G4", "Dist. (nm)"], ["H4", "Mag. HDG"], ["I4", "W/V"], ["J4", "Mag. Track"],
@@ -414,9 +420,12 @@ function buildIfrSheet(input: NavlogExportInput) {
     if (!leg) continue;
     set(cells, `F${top}`, navlogMinutesText(leg.ete));
     set(cells, `G${top}`, Math.round(leg.distance));
-    set(cells, `H${top}`, Math.round(leg.magneticHeading));
+    set(cells, `H${top}`, threeDigits(leg.magneticHeading));
     set(cells, `I${top}`, windVector(input, leg));
-    set(cells, `J${top}`, Math.round(leg.magneticCourse));
+    set(cells, `J${top}`, threeDigits(leg.magneticCourse));
+    set(cells, `K${top}`, leg.altitudeFt ? Math.round(leg.altitudeFt) : "");
+    const msa = input.msaByLeg?.[i];
+    set(cells, `L${top}`, msa == null ? "" : Math.round(msa));
   }
   merges.push("H34:L34");
 
@@ -424,7 +433,7 @@ function buildIfrSheet(input: NavlogExportInput) {
   set(cells, "A35", "NAV/COM frequencies", 5);
   set(cells, "I35", "Fuel calculation", 5);
   const fuel = navlogFuelSummary(input);
-  const fuelValues = [fuel[0], fuel[1], null, fuel[2], fuel[3], fuel[4], fuel[5]];
+  const fuelValues = [fuel[0], fuel[1], fuel[2], fuel[3], fuel[4], fuel[5], fuel[6]];
   const fuelLabels = ["trip", "cont. 5%", "alternate", "reserve", "extra", "taxi", "Block"];
   for (let i = 0; i < 7; i++) {
     const row = 36 + i;
@@ -473,8 +482,8 @@ function buildIfrSheet(input: NavlogExportInput) {
 export function buildNavlogXlsxBytes(input: NavlogExportInput) {
   validateCapacity(input);
   const type = input.navlogType ?? "VFR";
-  const sheetXml = type === "IFR" ? buildIfrSheet(input) : buildVfrSheet(input);
-  return writeZip(commonPackageEntries(sheetXml, type === "IFR" ? "NAVLOG" : "VFR NAVLOG"));
+  const sheetXml = type === "CPL" ? buildCplSheet(input) : buildVfrSheet(input);
+  return writeZip(commonPackageEntries(sheetXml, type === "CPL" ? "CPL NAVLOG" : "VFR NAVLOG"));
 }
 
 export async function exportNavlogXlsx(input: NavlogExportInput) {
