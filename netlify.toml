@@ -72,3 +72,9 @@
   to = "/.netlify/functions/notams"
   status = 200
   force = true
+
+[[redirects]]
+  from = "/api/terrain-msa"
+  to = "/.netlify/functions/terrain-msa"
+  status = 200
+  force = true
