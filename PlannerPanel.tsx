@@ -240,10 +240,10 @@ function TrainerNavlogTable({
                       {Math.round(leg.distance)}
                     </TableCell>
                     <TableCell className="border-r border-border px-3 py-2.5 text-primary">
-                      {Math.round(leg.magneticCourse)}°
+                      {threeDigitTrack(leg.magneticCourse)}°
                     </TableCell>
                     <TableCell className="px-3 py-2.5 text-primary">
-                      {Math.round(leg.trueCourse)}°
+                      {threeDigitTrack(leg.trueCourse)}°
                     </TableCell>
                   </TableRow>
                 )}
@@ -1004,13 +1004,13 @@ export function PlannerPanel({
                       <TableCell className="px-3 py-2.5 text-primary">
                         {leg.tas.toFixed(0)} kt
                       </TableCell>
-                      <TableCell className="px-3 py-2.5 text-primary">{leg.trueCourse.toFixed(0)}°</TableCell>
+                      <TableCell className="px-3 py-2.5 text-primary">{threeDigitTrack(leg.trueCourse)}°</TableCell>
                       <TableCell className="px-3 py-2.5 text-primary">
-                        {leg.magneticCourse.toFixed(0)}°
+                        {threeDigitTrack(leg.magneticCourse)}°
                       </TableCell>
                       <TableCell className="px-3 py-2.5 text-muted-foreground">{signed(leg.wca)}°</TableCell>
                       <TableCell className="px-3 py-2.5 text-primary">
-                        {leg.magneticHeading.toFixed(0)}°
+                        {threeDigitTrack(leg.magneticHeading)}°
                       </TableCell>
                       <TableCell className="px-3 py-2.5 text-muted-foreground">
                         {leg.groundSpeed === null ? "—" : `${leg.groundSpeed.toFixed(0)} kt`}
