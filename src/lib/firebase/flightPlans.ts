@@ -15,6 +15,8 @@ import { getFirebaseServices } from "./client";
 
 export type SavedLegCondition = {
   altitudeFt: string;
+  tas: string;
+  fuelFlow: string;
   windDir: string;
   windSpeed: string;
 };
@@ -35,6 +37,8 @@ export type FlightPlanPayload = {
   departureAltitude: string;
   climbRate: string;
   climbFuelFlow: string;
+  alternateFuelMode: "none" | "custom";
+  alternateFuel: string;
 };
 
 export type SavedFlightPlan = FlightPlanPayload & {
@@ -64,6 +68,8 @@ function fromDoc(id: string, data: DocumentData): SavedFlightPlan {
     legConditions: Array.isArray(data.legConditions)
       ? data.legConditions.map((item: DocumentData) => ({
           altitudeFt: typeof item?.altitudeFt === "string" ? item.altitudeFt : "",
+          tas: typeof item?.tas === "string" ? item.tas : "",
+          fuelFlow: typeof item?.fuelFlow === "string" ? item.fuelFlow : "",
           windDir: typeof item?.windDir === "string" ? item.windDir : "",
           windSpeed: typeof item?.windSpeed === "string" ? item.windSpeed : "",
         }))
@@ -74,6 +80,8 @@ function fromDoc(id: string, data: DocumentData): SavedFlightPlan {
     climbRate: typeof data.climbRate === "string" ? data.climbRate : "500",
     climbFuelFlow:
       typeof data.climbFuelFlow === "string" ? data.climbFuelFlow : data.fuelFlow ?? "8",
+    alternateFuelMode: data.alternateFuelMode === "custom" ? "custom" : "none",
+    alternateFuel: typeof data.alternateFuel === "string" ? data.alternateFuel : "0",
     updatedAt: data.updatedAt,
   };
 }

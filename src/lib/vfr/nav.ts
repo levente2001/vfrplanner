@@ -26,6 +26,7 @@ export type LegPlanningInput = {
   windSpeed?: number;
   climbRateFpm?: number;
   climbFuelFlow?: number;
+  fuelFlow?: number;
   startAltitudeFt?: number;
 };
 
@@ -656,6 +657,10 @@ export function computeLegs(
       legPlan?.climbFuelFlow != null && Number.isFinite(legPlan.climbFuelFlow)
         ? Math.max(0, legPlan.climbFuelFlow)
         : n.fuelFlow;
+    const cruiseFuelFlow =
+      legPlan?.fuelFlow != null && Number.isFinite(legPlan.fuelFlow)
+        ? Math.max(0, legPlan.fuelFlow)
+        : n.fuelFlow;
     const rawClimbTime =
       climbRateFpm > 0 && altitudeFt > startAltitudeFt
         ? (altitudeFt - startAltitudeFt) / climbRateFpm / 60
@@ -663,7 +668,7 @@ export function computeLegs(
     const climbTime = ete === null ? 0 : Math.min(ete, rawClimbTime);
     const cruiseTime = ete === null ? 0 : Math.max(0, ete - climbTime);
     const climbFuel = climbTime * climbFuelFlow;
-    const cruiseFuel = cruiseTime * n.fuelFlow;
+    const cruiseFuel = cruiseTime * cruiseFuelFlow;
     const fuel = ete === null ? null : climbFuel + cruiseFuel;
 
     legs.push({

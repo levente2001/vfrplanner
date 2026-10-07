@@ -7,7 +7,7 @@ import {
   useMemo,
   useState,
 } from "react";
-import { ArrowDown, ArrowUp, Download, Plane, Minus, Plus } from "lucide-react";
+import { ArrowDown, ArrowUp, Download, GripVertical, Plane, Minus, Plus } from "lucide-react";
 import type { User } from "firebase/auth";
 import {
   deleteFlightPlan,
@@ -68,6 +68,8 @@ type FuelUnit = "L" | "USG";
 
 type LegCondition = {
   altitudeFt: string;
+  tas: string;
+  fuelFlow: string;
   windDir: string;
   windSpeed: string;
 };
@@ -119,6 +121,10 @@ function numberOr(value: string | undefined, fallback: number) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function threeDigitTrack(value: number) {
+  return String(((Math.round(value) % 360) + 360) % 360).padStart(3, "0");
+}
+
 const fuelUnitLabel: Record<FuelUnit, string> = {
   L: "L",
   USG: "US gal",
@@ -165,6 +171,7 @@ function TrainerNavlogTable({
   totalTime,
   totalFuel,
   fuelUnit,
+  alternateFuel,
 }: {
   waypoints: WaypointMeta[];
   legs: Leg[];
@@ -172,11 +179,13 @@ function TrainerNavlogTable({
   totalTime: number;
   totalFuel: number;
   fuelUnit: FuelUnit;
+  alternateFuel: number;
 }) {
   const fuelRows = navlogFuelSummary({
     totalFuel,
     fuelUnit,
     fuelUnitLabel: fuelUnitLabel[fuelUnit],
+    alternateFuel,
   });
   const isExportLimited =
     waypoints.length > NAVLOG_WAYPOINT_LIMIT || legs.length > NAVLOG_LEG_LIMIT;
@@ -234,10 +243,10 @@ function TrainerNavlogTable({
                       {Math.round(leg.distance)}
                     </TableCell>
                     <TableCell className="border-r border-border px-3 py-2.5 text-primary">
-                      {Math.round(leg.magneticCourse)}°
+                      {threeDigitTrack(leg.magneticCourse)}°
                     </TableCell>
                     <TableCell className="px-3 py-2.5 text-primary">
-                      {Math.round(leg.trueCourse)}°
+                      {threeDigitTrack(leg.trueCourse)}°
                     </TableCell>
                   </TableRow>
                 )}
@@ -335,6 +344,12 @@ export function PlannerPanel({
   const [departureAltitude, setDepartureAltitude] = useState("0");
   const [climbRate, setClimbRate] = useState("500");
   const [climbFuelFlow, setClimbFuelFlow] = useState("8");
+  const [alternateFuelMode, setAlternateFuelMode] = useState<"none" | "custom">("none");
+  const [alternateFuel, setAlternateFuel] = useState("0");
+  const [activeLegIndex, setActiveLegIndex] = useState(0);
+  const [draggedWaypointIndex, setDraggedWaypointIndex] = useState<number | null>(null);
+  const [terrainMsa, setTerrainMsa] = useState<Array<number | null>>([]);
+  const [msaStatus, setMsaStatus] = useState("");
   const [variationValue, setVariationValue] = useState("6");
   const [variationDirection, setVariationDirection] = useState<"E" | "W">("E");
   const [error, setError] = useState("");
@@ -406,10 +421,12 @@ export function PlannerPanel({
     const legs = waypoints.slice(0, -1).map((_, index) => {
       const condition = legConditions[index];
       const altitudeFt = Math.max(0, numberOr(condition?.altitudeFt, previousAltitude));
-      const legTas = pohTasAtAltitude(pohSchedule.points, altitudeFt) ?? numeric.tas;
+      const pohTas = pohTasAtAltitude(pohSchedule.points, altitudeFt) ?? numeric.tas;
+      const legTas = Math.max(0, numberOr(condition?.tas, pohTas));
       const item = {
         altitudeFt,
         tas: legTas,
+        fuelFlow: Math.max(0, numberOr(condition?.fuelFlow, numeric.fuelFlow)),
         windDir: numberOr(condition?.windDir, numeric.windDir),
         windSpeed: Math.max(0, numberOr(condition?.windSpeed, numeric.windSpeed)),
         climbRateFpm: Math.max(0, numeric.climbRate),
@@ -443,7 +460,17 @@ export function PlannerPanel({
 
   useEffect(() => {
     onWaypointsChange?.(waypoints);
+    setTerrainMsa([]);
+    setMsaStatus("");
   }, [waypoints, onWaypointsChange]);
+
+  useEffect(() => {
+    if (!result.legs.length) {
+      setActiveLegIndex(0);
+      return;
+    }
+    setActiveLegIndex((current) => Math.min(current, result.legs.length - 1));
+  }, [result.legs.length]);
 
   useEffect(() => {
     if (!onPlanChange) return;
@@ -532,10 +559,9 @@ export function PlannerPanel({
     setWaypoints((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
-  const reorderWaypoint = useCallback((index: number, direction: -1 | 1) => {
+  const moveWaypointTo = useCallback((index: number, target: number) => {
     setWaypoints((prev) => {
-      const target = index + direction;
-      if (target < 0 || target >= prev.length) return prev;
+      if (index === target || index < 0 || target < 0 || index >= prev.length || target >= prev.length) return prev;
       const next = [...prev];
       const [item] = next.splice(index, 1);
       if (!item) return prev;
@@ -543,6 +569,10 @@ export function PlannerPanel({
       return next;
     });
   }, []);
+
+  const reorderWaypoint = useCallback((index: number, direction: -1 | 1) => {
+    moveWaypointTo(index, index + direction);
+  }, [moveWaypointTo]);
 
   const changeFuelUnit = useCallback((nextUnit: FuelUnit) => {
     setFuelFlow((current) => {
@@ -555,6 +585,20 @@ export function PlannerPanel({
       if (!Number.isFinite(value)) return current;
       return convertFuelUnit(value, fuelUnit, nextUnit).toFixed(1);
     });
+    setLegConditions((current) =>
+      current.map((condition) => {
+        if (!condition.fuelFlow.trim()) return condition;
+        const value = parseFloat(condition.fuelFlow);
+        return Number.isFinite(value)
+          ? { ...condition, fuelFlow: convertFuelUnit(value, fuelUnit, nextUnit).toFixed(1) }
+          : condition;
+      }),
+    );
+    setAlternateFuel((current) => {
+      const value = parseFloat(current);
+      if (!Number.isFinite(value)) return current;
+      return convertFuelUnit(value, fuelUnit, nextUnit).toFixed(1);
+    });
     setFuelUnit(nextUnit);
   }, [fuelUnit]);
 
@@ -563,7 +607,7 @@ export function PlannerPanel({
       setLegConditions((current) => {
         const next = [...current];
         while (next.length <= index) {
-          next.push({ altitudeFt: "", windDir: "", windSpeed: "" });
+          next.push({ altitudeFt: "", tas: "", fuelFlow: "", windDir: "", windSpeed: "" });
         }
         next[index] = { ...next[index]!, [field]: value };
         return next;
@@ -589,6 +633,10 @@ export function PlannerPanel({
       const condition = legConditions[index]!;
       if (condition.altitudeFt.trim() && Number(condition.altitudeFt) < 0)
         return `Leg ${index + 1}: altitude cannot be negative.`;
+      if (condition.tas.trim() && (!Number.isFinite(Number(condition.tas)) || Number(condition.tas) <= 0))
+        return `Leg ${index + 1}: TAS must be greater than 0.`;
+      if (condition.fuelFlow.trim() && (!Number.isFinite(Number(condition.fuelFlow)) || Number(condition.fuelFlow) < 0))
+        return `Leg ${index + 1}: fuel flow cannot be negative.`;
       if (
         condition.windDir.trim() &&
         (!Number.isFinite(Number(condition.windDir)) ||
@@ -676,6 +724,30 @@ export function PlannerPanel({
     }
   }
 
+  async function calculateTerrainMsa() {
+    if (waypoints.length < 2) return [] as Array<number | null>;
+    setMsaStatus("Calculating terrain MSA…");
+    const response = await fetch("/api/terrain-msa", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        corridorNm: 5,
+        waypoints: waypoints.map((waypoint) => ({ lat: waypoint.lat, lon: waypoint.lon })),
+      }),
+    });
+    const data = (await response.json()) as {
+      error?: string;
+      legs?: Array<{ legIndex: number; msaFt: number }>;
+    };
+    if (!response.ok) throw new Error(data.error || "Terrain MSA calculation failed.");
+    const values = result.legs.map((_, index) =>
+      data.legs?.find((item) => item.legIndex === index)?.msaFt ?? null,
+    );
+    setTerrainMsa(values);
+    setMsaStatus("Terrain MSA calculated for the ±5 NM corridor.");
+    return values;
+  }
+
   async function exportNavlog() {
     if (!result.legs.length) {
       setError("Calculate a route before exporting the navigation log.");
@@ -684,6 +756,9 @@ export function PlannerPanel({
     setError("");
     setExporting(true);
     try {
+      const msaByLeg = navlogType === "CPL"
+        ? (terrainMsa.length === result.legs.length ? terrainMsa : await calculateTerrainMsa())
+        : terrainMsa;
       await exportNavlogXlsx({
         waypoints,
         legs: result.legs,
@@ -695,6 +770,8 @@ export function PlannerPanel({
         navlogType,
         windDirection: numeric.windDir,
         windSpeed: numeric.windSpeed,
+        alternateFuel: alternateFuelMode === "custom" ? Math.max(0, Number(alternateFuel) || 0) : 0,
+        msaByLeg,
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Navigation log export failed.");
@@ -720,6 +797,8 @@ export function PlannerPanel({
       departureAltitude,
       climbRate,
       climbFuelFlow,
+      alternateFuelMode,
+      alternateFuel,
     };
   }
 
@@ -759,6 +838,8 @@ export function PlannerPanel({
     setDepartureAltitude(plan.departureAltitude ?? "0");
     setClimbRate(plan.climbRate ?? "500");
     setClimbFuelFlow(plan.climbFuelFlow ?? plan.fuelFlow);
+    setAlternateFuelMode(plan.alternateFuelMode ?? "none");
+    setAlternateFuel(plan.alternateFuel ?? "0");
     setVariationValue(plan.variationValue);
     setVariationDirection(plan.variationDirection);
     setFitKey((k) => k + 1);
@@ -846,6 +927,72 @@ export function PlannerPanel({
           </p>
         </Card>
 
+        {result.legs.length > 0 && (
+          <Card className="overflow-hidden">
+            <CardHeader className="border-b border-border bg-panel-muted px-4 py-3">
+              <CardTitle className="panel-heading">Per-leg calculation</CardTitle>
+              <p className="mt-1 text-xs text-muted-foreground">
+                The route calculation establishes geometry first. Use these leg tabs to override TAS, fuel flow, altitude and forecast wind for each segment.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-4 p-4">
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {result.legs.map((leg, index) => (
+                  <Button
+                    key={`${leg.from}-${leg.to}-tab`}
+                    type="button"
+                    size="sm"
+                    variant={activeLegIndex === index ? "default" : "outline"}
+                    className="shrink-0 font-mono text-xs"
+                    onClick={() => setActiveLegIndex(index)}
+                  >
+                    {index + 1}. {leg.from} → {leg.to}
+                  </Button>
+                ))}
+              </div>
+              {result.legs[activeLegIndex] && (() => {
+                const leg = result.legs[activeLegIndex]!;
+                const condition = legConditions[activeLegIndex];
+                return (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+                      <div className="space-y-1.5">
+                        <Label>Altitude (ft)</Label>
+                        <Input type="number" min="0" value={condition?.altitudeFt ?? ""} placeholder={String(Math.round(leg.altitudeFt || numeric.departureAltitude))} onChange={(e) => updateLegCondition(activeLegIndex, "altitudeFt", e.target.value)} />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>TAS (kt)</Label>
+                        <Input type="number" min="1" value={condition?.tas ?? ""} placeholder={String(Math.round(leg.tas))} onChange={(e) => updateLegCondition(activeLegIndex, "tas", e.target.value)} />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Fuel flow ({fuelUnitLabel[fuelUnit]}/h)</Label>
+                        <Input type="number" min="0" step="0.1" value={condition?.fuelFlow ?? ""} placeholder={numeric.fuelFlow.toFixed(1)} onChange={(e) => updateLegCondition(activeLegIndex, "fuelFlow", e.target.value)} />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Wind dir (°)</Label>
+                        <Input type="number" min="0" max="360" value={condition?.windDir ?? ""} placeholder={threeDigitTrack(numeric.windDir)} onChange={(e) => updateLegCondition(activeLegIndex, "windDir", e.target.value)} />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Wind speed (kt)</Label>
+                        <Input type="number" min="0" value={condition?.windSpeed ?? ""} placeholder={String(Math.round(numeric.windSpeed))} onChange={(e) => updateLegCondition(activeLegIndex, "windSpeed", e.target.value)} />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 rounded-md border border-border bg-panel-muted p-3 text-xs sm:grid-cols-6">
+                      <div><span className="text-muted-foreground">Track</span><br/><strong>{threeDigitTrack(leg.magneticCourse)}°</strong></div>
+                      <div><span className="text-muted-foreground">Heading</span><br/><strong>{threeDigitTrack(leg.magneticHeading)}°</strong></div>
+                      <div><span className="text-muted-foreground">GS</span><br/><strong>{leg.groundSpeed == null ? "—" : `${leg.groundSpeed.toFixed(0)} kt`}</strong></div>
+                      <div><span className="text-muted-foreground">ETE</span><br/><strong>{leg.ete == null ? "—" : `${Math.round(leg.ete * 60)} min`}</strong></div>
+                      <div><span className="text-muted-foreground">Fuel</span><br/><strong>{leg.fuel == null ? "—" : `${leg.fuel.toFixed(1)} ${fuelUnitLabel[fuelUnit]}`}</strong></div>
+                      <div><span className="text-muted-foreground">Terrain MSA</span><br/><strong>{terrainMsa[activeLegIndex] == null ? "—" : `${terrainMsa[activeLegIndex]} ft`}</strong></div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Blank fields inherit the route defaults/POH TAS. Changes recalculate this leg immediately.</p>
+                  </div>
+                );
+              })()}
+            </CardContent>
+          </Card>
+        )}
+
         <Card className="overflow-hidden">
           <CardHeader className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border bg-panel-muted px-4 py-2.5">
             <CardTitle className="panel-heading">Leg breakdown</CardTitle>
@@ -877,6 +1024,7 @@ export function PlannerPanel({
               totalTime={result.totalTime}
               totalFuel={result.totalFuel}
               fuelUnit={fuelUnit}
+              alternateFuel={alternateFuelMode === "custom" ? Math.max(0, Number(alternateFuel) || 0) : 0}
             />
           ) : (
             <Table className="text-left">
@@ -953,13 +1101,13 @@ export function PlannerPanel({
                       <TableCell className="px-3 py-2.5 text-primary">
                         {leg.tas.toFixed(0)} kt
                       </TableCell>
-                      <TableCell className="px-3 py-2.5 text-primary">{leg.trueCourse.toFixed(0)}°</TableCell>
+                      <TableCell className="px-3 py-2.5 text-primary">{threeDigitTrack(leg.trueCourse)}°</TableCell>
                       <TableCell className="px-3 py-2.5 text-primary">
-                        {leg.magneticCourse.toFixed(0)}°
+                        {threeDigitTrack(leg.magneticCourse)}°
                       </TableCell>
                       <TableCell className="px-3 py-2.5 text-muted-foreground">{signed(leg.wca)}°</TableCell>
                       <TableCell className="px-3 py-2.5 text-primary">
-                        {leg.magneticHeading.toFixed(0)}°
+                        {threeDigitTrack(leg.magneticHeading)}°
                       </TableCell>
                       <TableCell className="px-3 py-2.5 text-muted-foreground">
                         {leg.groundSpeed === null ? "—" : `${leg.groundSpeed.toFixed(0)} kt`}
@@ -1262,7 +1410,7 @@ export function PlannerPanel({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="VFR">VFR navlog</SelectItem>
-                  <SelectItem value="IFR">IFR navlog</SelectItem>
+                  <SelectItem value="CPL">CPL navlog</SelectItem>
                 </SelectContent>
               </Select>
               <p className="flight-help">
@@ -1270,6 +1418,45 @@ export function PlannerPanel({
                 {NAVLOG_LEG_LIMIT} legs.
               </p>
             </div>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="alternateFuelMode">Alternate fuel</Label>
+                <Select
+                  value={alternateFuelMode}
+                  onValueChange={(value) => setAlternateFuelMode(value as "none" | "custom")}
+                >
+                  <SelectTrigger id="alternateFuelMode" className="flight-input">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    <SelectItem value="custom">Custom</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {alternateFuelMode === "custom" && (
+                <div className="space-y-2">
+                  <Label htmlFor="alternateFuel">Amount ({fuelUnitLabel[fuelUnit]})</Label>
+                  <Input
+                    id="alternateFuel"
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    value={alternateFuel}
+                    onChange={(e) => setAlternateFuel(e.target.value)}
+                    className="flight-input"
+                  />
+                </div>
+              )}
+            </div>
+            {navlogType === "CPL" && (
+              <div className="space-y-2 rounded-md border border-border p-3 text-xs text-muted-foreground">
+                <Button type="button" variant="outline" size="sm" onClick={() => void calculateTerrainMsa()}>
+                  Calculate terrain MSA
+                </Button>
+                <p>{msaStatus || "MSA uses sampled terrain in the ±5 NM corridor + 1000 ft, rounded up to 100 ft. It does not include obstacles or official published minima."}</p>
+              </div>
+            )}
             <Button
               className="w-full"
               variant="outline"
@@ -1302,8 +1489,18 @@ export function PlannerPanel({
               {waypoints.map((w, i) => (
                 <li
                   key={`${w.label}-${i}`}
-                  className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-2"
+                  draggable
+                  onDragStart={() => setDraggedWaypointIndex(i)}
+                  onDragEnd={() => setDraggedWaypointIndex(null)}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (draggedWaypointIndex !== null) moveWaypointTo(draggedWaypointIndex, i);
+                    setDraggedWaypointIndex(null);
+                  }}
+                  className={`grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 py-2 ${draggedWaypointIndex === i ? "opacity-50" : ""}`}
                 >
+                  <GripVertical className="size-4 cursor-grab text-muted-foreground" aria-hidden="true" />
                   <div className="min-w-0">
                     <p className="truncate font-mono text-xs font-medium">{w.label}</p>
                     <p className="truncate text-[11px] text-muted-foreground">
@@ -1346,7 +1543,7 @@ export function PlannerPanel({
             </ul>
           )}
           <Badge variant="outline" className="mt-3 gap-2">
-            <Plus className="size-3 shrink-0" /> Click the map or an airport dot to add more.
+            <Plus className="size-3 shrink-0" /> Click the map or an airport dot to add more. Drag waypoints to reorder.
           </Badge>
           </CardContent>
         </Card>
