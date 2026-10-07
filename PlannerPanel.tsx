@@ -171,6 +171,7 @@ function TrainerNavlogTable({
   totalTime,
   totalFuel,
   fuelUnit,
+  alternateFuel,
 }: {
   waypoints: WaypointMeta[];
   legs: Leg[];
@@ -178,11 +179,13 @@ function TrainerNavlogTable({
   totalTime: number;
   totalFuel: number;
   fuelUnit: FuelUnit;
+  alternateFuel: number;
 }) {
   const fuelRows = navlogFuelSummary({
     totalFuel,
     fuelUnit,
     fuelUnitLabel: fuelUnitLabel[fuelUnit],
+    alternateFuel,
   });
   const isExportLimited =
     waypoints.length > NAVLOG_WAYPOINT_LIMIT || legs.length > NAVLOG_LEG_LIMIT;
@@ -578,6 +581,20 @@ export function PlannerPanel({
       return convertFuelUnit(value, fuelUnit, nextUnit).toFixed(1);
     });
     setClimbFuelFlow((current) => {
+      const value = parseFloat(current);
+      if (!Number.isFinite(value)) return current;
+      return convertFuelUnit(value, fuelUnit, nextUnit).toFixed(1);
+    });
+    setLegConditions((current) =>
+      current.map((condition) => {
+        if (!condition.fuelFlow.trim()) return condition;
+        const value = parseFloat(condition.fuelFlow);
+        return Number.isFinite(value)
+          ? { ...condition, fuelFlow: convertFuelUnit(value, fuelUnit, nextUnit).toFixed(1) }
+          : condition;
+      }),
+    );
+    setAlternateFuel((current) => {
       const value = parseFloat(current);
       if (!Number.isFinite(value)) return current;
       return convertFuelUnit(value, fuelUnit, nextUnit).toFixed(1);
@@ -1007,6 +1024,7 @@ export function PlannerPanel({
               totalTime={result.totalTime}
               totalFuel={result.totalFuel}
               fuelUnit={fuelUnit}
+              alternateFuel={alternateFuelMode === "custom" ? Math.max(0, Number(alternateFuel) || 0) : 0}
             />
           ) : (
             <Table className="text-left">
