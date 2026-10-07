@@ -694,6 +694,30 @@ export function PlannerPanel({
     }
   }
 
+  async function calculateTerrainMsa() {
+    if (waypoints.length < 2) return [] as Array<number | null>;
+    setMsaStatus("Calculating terrain MSA…");
+    const response = await fetch("/api/terrain-msa", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        corridorNm: 5,
+        waypoints: waypoints.map((waypoint) => ({ lat: waypoint.lat, lon: waypoint.lon })),
+      }),
+    });
+    const data = (await response.json()) as {
+      error?: string;
+      legs?: Array<{ legIndex: number; msaFt: number }>;
+    };
+    if (!response.ok) throw new Error(data.error || "Terrain MSA calculation failed.");
+    const values = result.legs.map((_, index) =>
+      data.legs?.find((item) => item.legIndex === index)?.msaFt ?? null,
+    );
+    setTerrainMsa(values);
+    setMsaStatus("Terrain MSA calculated for the ±5 NM corridor.");
+    return values;
+  }
+
   async function exportNavlog() {
     if (!result.legs.length) {
       setError("Calculate a route before exporting the navigation log.");
@@ -702,6 +726,9 @@ export function PlannerPanel({
     setError("");
     setExporting(true);
     try {
+      const msaByLeg = navlogType === "CPL"
+        ? (terrainMsa.length === result.legs.length ? terrainMsa : await calculateTerrainMsa())
+        : terrainMsa;
       await exportNavlogXlsx({
         waypoints,
         legs: result.legs,
@@ -713,6 +740,8 @@ export function PlannerPanel({
         navlogType,
         windDirection: numeric.windDir,
         windSpeed: numeric.windSpeed,
+        alternateFuel: alternateFuelMode === "custom" ? Math.max(0, Number(alternateFuel) || 0) : 0,
+        msaByLeg,
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Navigation log export failed.");
@@ -1284,7 +1313,7 @@ export function PlannerPanel({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="VFR">VFR navlog</SelectItem>
-                  <SelectItem value="IFR">IFR navlog</SelectItem>
+                  <SelectItem value="CPL">CPL navlog</SelectItem>
                 </SelectContent>
               </Select>
               <p className="flight-help">
@@ -1292,6 +1321,45 @@ export function PlannerPanel({
                 {NAVLOG_LEG_LIMIT} legs.
               </p>
             </div>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="alternateFuelMode">Alternate fuel</Label>
+                <Select
+                  value={alternateFuelMode}
+                  onValueChange={(value) => setAlternateFuelMode(value as "none" | "custom")}
+                >
+                  <SelectTrigger id="alternateFuelMode" className="flight-input">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    <SelectItem value="custom">Custom</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {alternateFuelMode === "custom" && (
+                <div className="space-y-2">
+                  <Label htmlFor="alternateFuel">Amount ({fuelUnitLabel[fuelUnit]})</Label>
+                  <Input
+                    id="alternateFuel"
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    value={alternateFuel}
+                    onChange={(e) => setAlternateFuel(e.target.value)}
+                    className="flight-input"
+                  />
+                </div>
+              )}
+            </div>
+            {navlogType === "CPL" && (
+              <div className="space-y-2 rounded-md border border-border p-3 text-xs text-muted-foreground">
+                <Button type="button" variant="outline" size="sm" onClick={() => void calculateTerrainMsa()}>
+                  Calculate terrain MSA
+                </Button>
+                <p>{msaStatus || "MSA uses sampled terrain in the ±5 NM corridor + 1000 ft, rounded up to 100 ft. It does not include obstacles or official published minima."}</p>
+              </div>
+            )}
             <Button
               className="w-full"
               variant="outline"
