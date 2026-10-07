@@ -457,7 +457,17 @@ export function PlannerPanel({
 
   useEffect(() => {
     onWaypointsChange?.(waypoints);
+    setTerrainMsa([]);
+    setMsaStatus("");
   }, [waypoints, onWaypointsChange]);
+
+  useEffect(() => {
+    if (!result.legs.length) {
+      setActiveLegIndex(0);
+      return;
+    }
+    setActiveLegIndex((current) => Math.min(current, result.legs.length - 1));
+  }, [result.legs.length]);
 
   useEffect(() => {
     if (!onPlanChange) return;
@@ -546,10 +556,9 @@ export function PlannerPanel({
     setWaypoints((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
-  const reorderWaypoint = useCallback((index: number, direction: -1 | 1) => {
+  const moveWaypointTo = useCallback((index: number, target: number) => {
     setWaypoints((prev) => {
-      const target = index + direction;
-      if (target < 0 || target >= prev.length) return prev;
+      if (index === target || index < 0 || target < 0 || index >= prev.length || target >= prev.length) return prev;
       const next = [...prev];
       const [item] = next.splice(index, 1);
       if (!item) return prev;
@@ -557,6 +566,10 @@ export function PlannerPanel({
       return next;
     });
   }, []);
+
+  const reorderWaypoint = useCallback((index: number, direction: -1 | 1) => {
+    moveWaypointTo(index, index + direction);
+  }, [moveWaypointTo]);
 
   const changeFuelUnit = useCallback((nextUnit: FuelUnit) => {
     setFuelFlow((current) => {
@@ -896,6 +909,72 @@ export function PlannerPanel({
             unofficial OpenAIR data; check official publications.
           </p>
         </Card>
+
+        {result.legs.length > 0 && (
+          <Card className="overflow-hidden">
+            <CardHeader className="border-b border-border bg-panel-muted px-4 py-3">
+              <CardTitle className="panel-heading">Per-leg calculation</CardTitle>
+              <p className="mt-1 text-xs text-muted-foreground">
+                The route calculation establishes geometry first. Use these leg tabs to override TAS, fuel flow, altitude and forecast wind for each segment.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-4 p-4">
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {result.legs.map((leg, index) => (
+                  <Button
+                    key={`${leg.from}-${leg.to}-tab`}
+                    type="button"
+                    size="sm"
+                    variant={activeLegIndex === index ? "default" : "outline"}
+                    className="shrink-0 font-mono text-xs"
+                    onClick={() => setActiveLegIndex(index)}
+                  >
+                    {index + 1}. {leg.from} → {leg.to}
+                  </Button>
+                ))}
+              </div>
+              {result.legs[activeLegIndex] && (() => {
+                const leg = result.legs[activeLegIndex]!;
+                const condition = legConditions[activeLegIndex];
+                return (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+                      <div className="space-y-1.5">
+                        <Label>Altitude (ft)</Label>
+                        <Input type="number" min="0" value={condition?.altitudeFt ?? ""} placeholder={String(Math.round(leg.altitudeFt || numeric.departureAltitude))} onChange={(e) => updateLegCondition(activeLegIndex, "altitudeFt", e.target.value)} />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>TAS (kt)</Label>
+                        <Input type="number" min="1" value={condition?.tas ?? ""} placeholder={String(Math.round(leg.tas))} onChange={(e) => updateLegCondition(activeLegIndex, "tas", e.target.value)} />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Fuel flow ({fuelUnitLabel[fuelUnit]}/h)</Label>
+                        <Input type="number" min="0" step="0.1" value={condition?.fuelFlow ?? ""} placeholder={numeric.fuelFlow.toFixed(1)} onChange={(e) => updateLegCondition(activeLegIndex, "fuelFlow", e.target.value)} />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Wind dir (°)</Label>
+                        <Input type="number" min="0" max="360" value={condition?.windDir ?? ""} placeholder={threeDigitTrack(numeric.windDir)} onChange={(e) => updateLegCondition(activeLegIndex, "windDir", e.target.value)} />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Wind speed (kt)</Label>
+                        <Input type="number" min="0" value={condition?.windSpeed ?? ""} placeholder={String(Math.round(numeric.windSpeed))} onChange={(e) => updateLegCondition(activeLegIndex, "windSpeed", e.target.value)} />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 rounded-md border border-border bg-panel-muted p-3 text-xs sm:grid-cols-6">
+                      <div><span className="text-muted-foreground">Track</span><br/><strong>{threeDigitTrack(leg.magneticCourse)}°</strong></div>
+                      <div><span className="text-muted-foreground">Heading</span><br/><strong>{threeDigitTrack(leg.magneticHeading)}°</strong></div>
+                      <div><span className="text-muted-foreground">GS</span><br/><strong>{leg.groundSpeed == null ? "—" : `${leg.groundSpeed.toFixed(0)} kt`}</strong></div>
+                      <div><span className="text-muted-foreground">ETE</span><br/><strong>{leg.ete == null ? "—" : `${Math.round(leg.ete * 60)} min`}</strong></div>
+                      <div><span className="text-muted-foreground">Fuel</span><br/><strong>{leg.fuel == null ? "—" : `${leg.fuel.toFixed(1)} ${fuelUnitLabel[fuelUnit]}`}</strong></div>
+                      <div><span className="text-muted-foreground">Terrain MSA</span><br/><strong>{terrainMsa[activeLegIndex] == null ? "—" : `${terrainMsa[activeLegIndex]} ft`}</strong></div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Blank fields inherit the route defaults/POH TAS. Changes recalculate this leg immediately.</p>
+                  </div>
+                );
+              })()}
+            </CardContent>
+          </Card>
+        )}
 
         <Card className="overflow-hidden">
           <CardHeader className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border bg-panel-muted px-4 py-2.5">
@@ -1392,8 +1471,18 @@ export function PlannerPanel({
               {waypoints.map((w, i) => (
                 <li
                   key={`${w.label}-${i}`}
-                  className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-2"
+                  draggable
+                  onDragStart={() => setDraggedWaypointIndex(i)}
+                  onDragEnd={() => setDraggedWaypointIndex(null)}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (draggedWaypointIndex !== null) moveWaypointTo(draggedWaypointIndex, i);
+                    setDraggedWaypointIndex(null);
+                  }}
+                  className={`grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 py-2 ${draggedWaypointIndex === i ? "opacity-50" : ""}`}
                 >
+                  <GripVertical className="size-4 cursor-grab text-muted-foreground" aria-hidden="true" />
                   <div className="min-w-0">
                     <p className="truncate font-mono text-xs font-medium">{w.label}</p>
                     <p className="truncate text-[11px] text-muted-foreground">
@@ -1436,7 +1525,7 @@ export function PlannerPanel({
             </ul>
           )}
           <Badge variant="outline" className="mt-3 gap-2">
-            <Plus className="size-3 shrink-0" /> Click the map or an airport dot to add more.
+            <Plus className="size-3 shrink-0" /> Click the map or an airport dot to add more. Drag waypoints to reorder.
           </Badge>
           </CardContent>
         </Card>
