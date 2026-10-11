@@ -78,7 +78,23 @@ export function NotamPanel({ waypoints }: Props) {
     setError("");
     setLoading(true);
     try {
-      const request = buildNotamRequest(waypoints, parseFloat(corridorNm) || 10);
+      const terminalWaypoints = [waypoints[0], waypoints[waypoints.length - 1]].filter(
+        (waypoint, index, list): waypoint is WaypointMeta =>
+          Boolean(waypoint) &&
+          /^[A-Z0-9]{4}$/.test(waypoint.label.toUpperCase()) &&
+          list.findIndex(
+            (item) => item?.label.toUpperCase() === waypoint.label.toUpperCase(),
+          ) === index,
+      );
+      if (!terminalWaypoints.length) {
+        throw new Error(
+          "Configured API lookup needs an ICAO-coded departure or destination aerodrome.",
+        );
+      }
+      const request = buildNotamRequest(
+        terminalWaypoints,
+        parseFloat(corridorNm) || 10,
+      );
       setNotams(await fetchRouteNotams(request));
     } catch (e) {
       setNotams([]);
@@ -165,6 +181,9 @@ export function NotamPanel({ waypoints }: Props) {
                 <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
                 Configured API
               </Button>
+              <p className="self-center text-[11px] text-muted-foreground lg:col-span-4">
+                Quota-safe mode: configured API checks departure/destination only and uses a 5-minute server cache.
+              </p>
             </div>
 
             <div className="space-y-2">
