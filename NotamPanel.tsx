@@ -78,13 +78,18 @@ export function NotamPanel({ waypoints }: Props) {
     setError("");
     setLoading(true);
     try {
-      const terminalWaypoints = [waypoints[0], waypoints[waypoints.length - 1]].filter(
-        (waypoint, index, list): waypoint is WaypointMeta =>
-          Boolean(waypoint) &&
-          /^[A-Z0-9]{4}$/.test(waypoint.label.toUpperCase()) &&
-          list.findIndex(
-            (item) => item?.label.toUpperCase() === waypoint.label.toUpperCase(),
-          ) === index,
+      const terminalCandidates = [waypoints[0], waypoints[waypoints.length - 1]];
+      const terminalWaypoints = terminalCandidates.filter(
+        (waypoint, index, list): waypoint is WaypointMeta => {
+          if (!waypoint) return false;
+          const label = waypoint.label.toUpperCase();
+          if (!/^[A-Z0-9]{4}$/.test(label)) return false;
+          return (
+            list.findIndex(
+              (item) => item?.label.toUpperCase() === label,
+            ) === index
+          );
+        },
       );
       if (!terminalWaypoints.length) {
         throw new Error(
