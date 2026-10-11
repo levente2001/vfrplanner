@@ -29,8 +29,8 @@ const FIXED_FUEL_USG = {
   extra: 4,
   taxi: 1,
 };
-export const NAVLOG_WAYPOINT_LIMIT = 15;
-export const NAVLOG_LEG_LIMIT = 14;
+export const NAVLOG_WAYPOINT_LIMIT = 19;
+export const NAVLOG_LEG_LIMIT = 18;
 const encoder = new TextEncoder();
 
 const crcTable = Array.from({ length: 256 }, (_, n) => {
@@ -232,24 +232,23 @@ function commonPackageEntries(sheetXml: string, sheetName: string): ZipEntry[] {
     <font><b/><sz val="9"/><name val="Arial"/><family val="2"/></font>
     <font><b/><sz val="16"/><name val="Arial"/><family val="2"/></font>
   </fonts>
-  <fills count="4">
+  <fills count="3">
     <fill><patternFill patternType="none"/></fill>
     <fill><patternFill patternType="gray125"/></fill>
-    <fill><patternFill patternType="solid"><fgColor rgb="FFD9E2F3"/><bgColor indexed="64"/></patternFill></fill>
-    <fill><patternFill patternType="solid"><fgColor rgb="FFF7F7F7"/><bgColor indexed="64"/></patternFill></fill>
+    <fill><patternFill patternType="solid"><fgColor rgb="FFE7E6E6"/><bgColor indexed="64"/></patternFill></fill>
   </fills>
   <borders count="2">
     <border><left/><right/><top/><bottom/><diagonal/></border>
-    <border><left style="thin"><color rgb="FF333333"/></left><right style="thin"><color rgb="FF333333"/></right><top style="thin"><color rgb="FF333333"/></top><bottom style="thin"><color rgb="FF333333"/></bottom><diagonal/></border>
+    <border><left style="thin"><color rgb="FF000000"/></left><right style="thin"><color rgb="FF000000"/></right><top style="thin"><color rgb="FF000000"/></top><bottom style="thin"><color rgb="FF000000"/></bottom><diagonal/></border>
   </borders>
   <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
   <cellXfs count="9">
     <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
-    <xf numFmtId="0" fontId="2" fillId="2" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
-    <xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
+    <xf numFmtId="0" fontId="2" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="left" vertical="center"/></xf>
+    <xf numFmtId="0" fontId="1" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
     <xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
-    <xf numFmtId="0" fontId="0" fillId="3" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
     <xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
+    <xf numFmtId="0" fontId="1" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
     <xf numFmtId="0" fontId="1" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="left" vertical="center" wrapText="1"/></xf>
     <xf numFmtId="0" fontId="1" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
     <xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="left" vertical="top" wrapText="1"/></xf>
@@ -267,10 +266,16 @@ function commonPackageEntries(sheetXml: string, sheetName: string): ZipEntry[] {
   ];
 }
 
-function worksheetXml(rows: string[], merges: string[], maxRow: number) {
-  const cols = [13, 7, 7, 10, 10, 10, 10, 11, 11, 11, 11, 11]
+function worksheetXml(
+  rows: string[],
+  merges: string[],
+  maxRow: number,
+  columnWidths: number[],
+) {
+  const cols = columnWidths
     .map((width, i) => `<col min="${i + 1}" max="${i + 1}" width="${width}" customWidth="1"/>`)
     .join("");
+  const maxColumn = columnName(columnWidths.length);
   const mergeXml = merges.length
     ? `<mergeCells count="${merges.length}">${merges
         .map((ref) => `<mergeCell ref="${ref}"/>`)
@@ -279,7 +284,7 @@ function worksheetXml(rows: string[], merges: string[], maxRow: number) {
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
   <sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>
-  <dimension ref="A1:L${maxRow}"/>
+  <dimension ref="A1:${maxColumn}${maxRow}"/>
   <sheetViews><sheetView workbookViewId="0"><pane ySplit="4" topLeftCell="A5" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>
   <sheetFormatPr defaultRowHeight="15"/>
   <cols>${cols}</cols>
