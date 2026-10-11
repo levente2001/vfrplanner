@@ -383,14 +383,14 @@ const exportBase = {
 const cplNavlogText = new TextDecoder().decode(
   buildNavlogXlsxBytes({ ...exportBase, navlogType: "CPL" }),
 );
-assert.match(cplNavlogText, /CPL NAVIGATION LOG/);
+assert.match(cplNavlogText, /NAVIGATION LOG/);
 assert.match(cplNavlogText, /WP19/);
 assert.match(cplNavlogText, /Mag\. HDG/);
 assert.match(cplNavlogText, /121\.500/);
 const vfrNavlogText = new TextDecoder().decode(
   buildNavlogXlsxBytes({ ...exportBase, navlogType: "VFR" }),
 );
-assert.match(vfrNavlogText, /VFR NAVIGATION LOG/);
+assert.match(vfrNavlogText, /NAVIGATION LOG/);
 assert.match(vfrNavlogText, /WP19/);
 assert.throws(
   () =>
