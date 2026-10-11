@@ -385,36 +385,38 @@ function buildVfrSheet(input: NavlogExportInput) {
     set(cells, `K${top}`, threeDigits(leg.trueCourse));
   }
 
-  merges.push("A43:D43");
-  set(cells, "A43", "Total:", 7);
-  set(cells, "F43", navlogMinutesText(input.totalTime), 7);
-  set(cells, "G43", Math.round(input.totalDistance), 7);
+  // Keep the lower section at the exact rows used by the supplied VFR template.
+  // Rows 43–46 intentionally remain as the template's spare route rows.
+  merges.push("A47:D47");
+  set(cells, "A47", "Total:", 7);
+  set(cells, "F47", navlogMinutesText(input.totalTime), 7);
+  set(cells, "G47", Math.round(input.totalDistance), 7);
 
-  merges.push("A44:C44", "D44:G44", "H44:K44");
-  set(cells, "A44", "NAV/COM frequencies", 5);
-  set(cells, "H44", "Fuel calculation", 5);
+  merges.push("A48:C48", "D48:G48", "H48:K48");
+  set(cells, "A48", "NAV/COM frequencies", 5);
+  set(cells, "H48", "Fuel calculation", 5);
 
   const fuel = navlogFuelSummary(input);
   for (let i = 0; i < 7; i++) {
-    const row = 45 + i;
+    const row = 49 + i;
     merges.push(`H${row}:I${row}`, `J${row}:K${row}`);
     set(cells, `H${row}`, fuel[i]?.label ?? "", i === 6 ? 7 : 3);
     set(cells, `J${row}`, fuel[i]?.text ?? "", i === 6 ? 7 : 3);
   }
 
-  merges.push("D51:E51", "F51:G51");
-  set(cells, "D51", "Emergency", 6);
-  set(cells, "F51", "121.500", 3);
+  merges.push("D55:E55", "F55:G55");
+  set(cells, "D55", "Emergency", 6);
+  set(cells, "F55", "121.500", 3);
 
-  merges.push("A52:K52", "A53:K59");
-  set(cells, "A52", "Remarks:", 5);
+  merges.push("A56:K56", "A57:K59");
+  set(cells, "A56", "Remarks:", 5);
 
   const rows: string[] = [];
   for (let row = 1; row <= 59; row++) {
     const height =
       row === 1 ? 26 :
       row === 4 || row === 5 ? 23 :
-      row === 44 || row === 52 ? 20 :
+      row === 48 || row === 56 ? 20 :
       18;
     rows.push(
       rowXml(
@@ -422,8 +424,8 @@ function buildVfrSheet(input: NavlogExportInput) {
         cells,
         () =>
           row === 1 ? 1 :
-          row === 4 || row === 44 || row === 52 ? 5 :
-          row === 43 ? 4 :
+          row === 4 || row === 48 || row === 56 ? 5 :
+          row === 47 ? 4 :
           3,
         height,
         11,
