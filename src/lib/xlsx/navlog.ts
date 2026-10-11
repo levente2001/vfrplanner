@@ -29,8 +29,8 @@ const FIXED_FUEL_USG = {
   extra: 4,
   taxi: 1,
 };
-export const NAVLOG_WAYPOINT_LIMIT = 15;
-export const NAVLOG_LEG_LIMIT = 14;
+export const NAVLOG_WAYPOINT_LIMIT = 19;
+export const NAVLOG_LEG_LIMIT = 18;
 const encoder = new TextEncoder();
 
 const crcTable = Array.from({ length: 256 }, (_, n) => {
@@ -191,9 +191,15 @@ function cellXml(ref: string, value: CellValue, style = 3) {
   return `<c r="${ref}" s="${style}" t="inlineStr"><is><t xml:space="preserve">${xmlEscape(value)}</t></is></c>`;
 }
 
-function rowXml(row: number, cells: CellMap, styleForColumn: (col: number) => number, height = 20) {
+function rowXml(
+  row: number,
+  cells: CellMap,
+  styleForColumn: (col: number) => number,
+  height = 20,
+  columnCount = 12,
+) {
   const rendered: string[] = [];
-  for (let col = 1; col <= 12; col++) {
+  for (let col = 1; col <= columnCount; col++) {
     const ref = `${columnName(col)}${row}`;
     const entry = cells[ref];
     rendered.push(cellXml(ref, entry?.value, entry?.style ?? styleForColumn(col)));
@@ -232,24 +238,23 @@ function commonPackageEntries(sheetXml: string, sheetName: string): ZipEntry[] {
     <font><b/><sz val="9"/><name val="Arial"/><family val="2"/></font>
     <font><b/><sz val="16"/><name val="Arial"/><family val="2"/></font>
   </fonts>
-  <fills count="4">
+  <fills count="3">
     <fill><patternFill patternType="none"/></fill>
     <fill><patternFill patternType="gray125"/></fill>
-    <fill><patternFill patternType="solid"><fgColor rgb="FFD9E2F3"/><bgColor indexed="64"/></patternFill></fill>
-    <fill><patternFill patternType="solid"><fgColor rgb="FFF7F7F7"/><bgColor indexed="64"/></patternFill></fill>
+    <fill><patternFill patternType="solid"><fgColor rgb="FFE7E6E6"/><bgColor indexed="64"/></patternFill></fill>
   </fills>
   <borders count="2">
     <border><left/><right/><top/><bottom/><diagonal/></border>
-    <border><left style="thin"><color rgb="FF333333"/></left><right style="thin"><color rgb="FF333333"/></right><top style="thin"><color rgb="FF333333"/></top><bottom style="thin"><color rgb="FF333333"/></bottom><diagonal/></border>
+    <border><left style="thin"><color rgb="FF000000"/></left><right style="thin"><color rgb="FF000000"/></right><top style="thin"><color rgb="FF000000"/></top><bottom style="thin"><color rgb="FF000000"/></bottom><diagonal/></border>
   </borders>
   <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
   <cellXfs count="9">
     <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
-    <xf numFmtId="0" fontId="2" fillId="2" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
-    <xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
+    <xf numFmtId="0" fontId="2" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="left" vertical="center"/></xf>
+    <xf numFmtId="0" fontId="1" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
     <xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
-    <xf numFmtId="0" fontId="0" fillId="3" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
     <xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
+    <xf numFmtId="0" fontId="1" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
     <xf numFmtId="0" fontId="1" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="left" vertical="center" wrapText="1"/></xf>
     <xf numFmtId="0" fontId="1" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
     <xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="left" vertical="top" wrapText="1"/></xf>
@@ -267,10 +272,16 @@ function commonPackageEntries(sheetXml: string, sheetName: string): ZipEntry[] {
   ];
 }
 
-function worksheetXml(rows: string[], merges: string[], maxRow: number) {
-  const cols = [13, 7, 7, 10, 10, 10, 10, 11, 11, 11, 11, 11]
+function worksheetXml(
+  rows: string[],
+  merges: string[],
+  maxRow: number,
+  columnWidths: number[],
+) {
+  const cols = columnWidths
     .map((width, i) => `<col min="${i + 1}" max="${i + 1}" width="${width}" customWidth="1"/>`)
     .join("");
+  const maxColumn = columnName(columnWidths.length);
   const mergeXml = merges.length
     ? `<mergeCells count="${merges.length}">${merges
         .map((ref) => `<mergeCell ref="${ref}"/>`)
@@ -279,7 +290,7 @@ function worksheetXml(rows: string[], merges: string[], maxRow: number) {
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
   <sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>
-  <dimension ref="A1:L${maxRow}"/>
+  <dimension ref="A1:${maxColumn}${maxRow}"/>
   <sheetViews><sheetView workbookViewId="0"><pane ySplit="4" topLeftCell="A5" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>
   <sheetFormatPr defaultRowHeight="15"/>
   <cols>${cols}</cols>
@@ -320,102 +331,166 @@ function validateCapacity(input: NavlogExportInput) {
   }
 }
 
-function commonInfo(cells: CellMap, title: string) {
-  set(cells, "A1", title, 1);
-  set(cells, "A2", "Call sign:", 6);
-  set(cells, "D2", "Squawk:", 6);
-  set(cells, "F2", "Date:", 6);
-  set(cells, "I2", "QNH:", 6);
-  set(cells, "A3", "OFF-block:", 6);
-  set(cells, "D3", "ON-block:", 6);
-  set(cells, "G3", "Flight time:", 6);
-  set(cells, "J3", "Aircraft:", 6);
-}
-
-function commonTopMerges() {
-  return ["A1:L1", "A2:C2", "D2:E2", "F2:H2", "I2:L2", "A3:C3", "D3:F3", "G3:I3", "J3:L3", "A4:C4"];
-}
-
 function buildVfrSheet(input: NavlogExportInput) {
   const cells: CellMap = {};
-  const merges = commonTopMerges();
-  commonInfo(cells, "VFR NAVIGATION LOG");
-  const headers = [
-    ["A4", "Waypoint name"], ["D4", "ATO"], ["E4", "ETO"], ["F4", "Leg time"],
-    ["G4", "Dist. (nm)"], ["H4", "W/V"], ["I4", "Mag. Track"], ["J4", "WCA"],
-    ["K4", "True Track"], ["L4", "Alt / MSA"],
-  ] as const;
-  headers.forEach(([ref, value]) => set(cells, ref, value, 2));
+  const merges: string[] = [
+    "A1:K1",
+    "A2:C2", "D2:G2", "H2:K2",
+    "A3:C3", "D3:G3", "H3:K3",
+    "A4:B4", "C4:D4",
+    "F4:F5", "G4:H5", "I4:J5", "K4:K5",
+  ];
+
+  set(cells, "A1", "NAVIGATION LOG", 1);
+  set(cells, "A2", "Call sign:", 6);
+  set(cells, "D2", "Squawk:", 6);
+  set(cells, "H2", "QNH:", 6);
+  set(cells, "A3", "OFF-block:", 6);
+  set(cells, "D3", "ON-Block:", 6);
+  set(cells, "H3", "Flight time:", 6);
+
+  set(cells, "A4", "Waypoint name", 2);
+  set(cells, "C4", "ETO", 2);
+  set(cells, "E4", "ATO", 2);
+  set(cells, "F4", "Leg time", 2);
+  set(cells, "G4", "Dist. (nm)", 2);
+  set(cells, "I4", "Mag. Track", 2);
+  set(cells, "K4", "True track", 2);
 
   for (let i = 0; i < NAVLOG_WAYPOINT_LIMIT; i++) {
-    const row = 5 + i * 2;
-    merges.push(`A${row}:C${row}`);
-    set(cells, `A${row}`, input.waypoints[i]?.label ?? "", 7);
+    const top = 5 + i * 2;
+    const bottom = top + 1;
+    merges.push(
+      `A${top}:B${bottom}`,
+      `C${top}:D${bottom}`,
+      `E${top}:E${bottom}`,
+    );
+    set(cells, `A${top}`, input.waypoints[i]?.label ?? "", 3);
   }
+
   for (let i = 0; i < NAVLOG_LEG_LIMIT; i++) {
-    const row = 6 + i * 2;
+    const top = 6 + i * 2;
+    const bottom = top + 1;
+    merges.push(
+      `F${top}:F${bottom}`,
+      `G${top}:H${bottom}`,
+      `I${top}:J${bottom}`,
+      `K${top}:K${bottom}`,
+    );
     const leg = input.legs[i];
     if (!leg) continue;
-    set(cells, `F${row}`, navlogMinutesText(leg.ete));
-    set(cells, `G${row}`, Math.round(leg.distance));
-    set(cells, `H${row}`, windVector(input, leg));
-    set(cells, `I${row}`, threeDigits(leg.magneticCourse));
-    set(cells, `J${row}`, Math.round(leg.wca));
-    set(cells, `K${row}`, threeDigits(leg.trueCourse));
+    set(cells, `F${top}`, navlogMinutesText(leg.ete));
+    set(cells, `G${top}`, Math.round(leg.distance));
+    set(cells, `I${top}`, threeDigits(leg.magneticCourse));
+    set(cells, `K${top}`, threeDigits(leg.trueCourse));
   }
-  merges.push("A34:E34");
-  set(cells, "A34", "TOTAL", 7);
-  set(cells, "F34", navlogMinutesText(input.totalTime), 7);
-  set(cells, "G34", Math.round(input.totalDistance), 7);
 
-  merges.push("A36:H36", "I36:L36", "A37:H43");
-  set(cells, "A36", "NAV / COM frequencies & remarks", 5);
-  set(cells, "I36", "Fuel calculation", 5);
+  // Keep the lower section at the exact rows used by the supplied VFR template.
+  // Rows 43–46 intentionally remain as the template's spare route rows.
+  merges.push("A47:D47");
+  set(cells, "A47", "Total:", 7);
+  set(cells, "F47", navlogMinutesText(input.totalTime), 7);
+  set(cells, "G47", Math.round(input.totalDistance), 7);
+
+  merges.push("A48:C48", "D48:G48", "H48:K48");
+  set(cells, "A48", "NAV/COM frequencies", 5);
+  set(cells, "H48", "Fuel calculation", 5);
+
   const fuel = navlogFuelSummary(input);
-  const fuelRows = [37, 38, 39, 40, 41, 42, 43];
-  fuelRows.forEach((row, i) => {
-    merges.push(`I${row}:J${row}`, `K${row}:L${row}`);
-    set(cells, `I${row}`, fuel[i]?.label ?? "", i === fuelRows.length - 1 ? 7 : 3);
-    set(cells, `K${row}`, fuel[i]?.text ?? "", i === fuelRows.length - 1 ? 7 : 3);
-  });
-  
+  for (let i = 0; i < 7; i++) {
+    const row = 49 + i;
+    merges.push(`H${row}:I${row}`, `J${row}:K${row}`);
+    set(cells, `H${row}`, fuel[i]?.label ?? "", i === 6 ? 7 : 3);
+    set(cells, `J${row}`, fuel[i]?.text ?? "", i === 6 ? 7 : 3);
+  }
+
+  merges.push("D55:E55", "F55:G55");
+  set(cells, "D55", "Emergency", 6);
+  set(cells, "F55", "121.500", 3);
+
+  merges.push("A56:K56", "A57:K59");
+  set(cells, "A56", "Remarks:", 5);
+
   const rows: string[] = [];
-  for (let row = 1; row <= 43; row++) {
-    const height = row === 1 ? 28 : row === 4 ? 30 : 20;
+  for (let row = 1; row <= 59; row++) {
+    const height =
+      row === 1 ? 26 :
+      row === 4 || row === 5 ? 23 :
+      row === 48 || row === 56 ? 20 :
+      18;
     rows.push(
       rowXml(
         row,
         cells,
-        () => (row === 1 ? 1 : row === 4 ? 2 : row === 36 ? 5 : row >= 37 ? 3 : row % 2 === 0 && row >= 6 && row <= 32 ? 4 : 3),
+        () =>
+          row === 1 ? 1 :
+          row === 4 || row === 48 || row === 56 ? 5 :
+          row === 47 ? 4 :
+          3,
         height,
+        11,
       ),
     );
   }
-  return worksheetXml(rows, merges, 43);
+
+  return worksheetXml(
+    rows,
+    merges,
+    59,
+    [13, 8, 9, 8, 9, 9, 8, 8, 9, 9, 10],
+  );
 }
 
 function buildCplSheet(input: NavlogExportInput) {
   const cells: CellMap = {};
-  const merges = commonTopMerges();
-  commonInfo(cells, "CPL NAVIGATION LOG");
+  const merges: string[] = [
+    "A1:L1",
+    "A2:D2", "E2:H2", "I2:L2",
+    "A3:C3", "D3:F3", "G3:I3", "J3:L3",
+    "A4:C4",
+    "F4:F5", "G4:G5", "H4:H5", "I4:I5", "J4:J5", "K4:K5", "L4:L5",
+  ];
+
+  set(cells, "A1", "NAVIGATION LOG", 1);
+  set(cells, "A2", "Call sign:", 6);
+  set(cells, "E2", "Squawk:", 6);
+  set(cells, "I2", "QNH:", 6);
+  set(cells, "A3", "OFF-block:", 6);
+  set(cells, "D3", "ON-Block:", 6);
+  set(cells, "G3", "Flight time:", 6);
+  set(cells, "J3", "CVLTWL", 6);
+
   const headers = [
-    ["A4", "Waypoint name"], ["D4", "ETO"], ["E4", "ATO"], ["F4", "Leg time"],
-    ["G4", "Dist. (nm)"], ["H4", "Mag. HDG"], ["I4", "W/V"], ["J4", "Mag. Track"],
-    ["K4", "Alt"], ["L4", "MSA"],
+    ["A4", "Waypoint name"],
+    ["D4", "ETO"],
+    ["E4", "ATO"],
+    ["F4", "Leg time"],
+    ["G4", "Dist. (nm)"],
+    ["H4", "Mag. HDG"],
+    ["I4", "W/V"],
+    ["J4", "Mag. Track"],
+    ["K4", "Alt"],
+    ["L4", "MSA"],
   ] as const;
   headers.forEach(([ref, value]) => set(cells, ref, value, 2));
 
   for (let i = 0; i < NAVLOG_WAYPOINT_LIMIT; i++) {
     const top = 5 + i * 2;
     const bottom = top + 1;
-    merges.push(`A${top}:C${bottom}`, `D${top}:D${bottom}`, `E${top}:E${bottom}`);
-    set(cells, `A${top}`, input.waypoints[i]?.label ?? "", 7);
+    merges.push(
+      `A${top}:C${bottom}`,
+      `D${top}:D${bottom}`,
+      `E${top}:E${bottom}`,
+    );
+    set(cells, `A${top}`, input.waypoints[i]?.label ?? "", 3);
   }
 
   for (let i = 0; i < NAVLOG_LEG_LIMIT; i++) {
     const top = 6 + i * 2;
     const bottom = top + 1;
-    for (const col of ["F", "G", "H", "I", "J", "K", "L"]) merges.push(`${col}${top}:${col}${bottom}`);
+    for (const col of ["F", "G", "H", "I", "J", "K", "L"]) {
+      merges.push(`${col}${top}:${col}${bottom}`);
+    }
     const leg = input.legs[i];
     if (!leg) continue;
     set(cells, `F${top}`, navlogMinutesText(leg.ete));
@@ -427,24 +502,27 @@ function buildCplSheet(input: NavlogExportInput) {
     const msa = input.msaByLeg?.[i];
     set(cells, `L${top}`, msa == null ? "" : Math.round(msa));
   }
-  merges.push("H34:L34");
 
-  merges.push("A35:H35", "I35:L35");
-  set(cells, "A35", "NAV/COM frequencies", 5);
-  set(cells, "I35", "Fuel calculation", 5);
+  merges.push("A43:D43", "E43:H43", "I43:L43");
+  set(cells, "A43", "NAV/COM frequencies", 5);
+  set(cells, "I43", "Fuel calculation", 5);
+
   const fuel = navlogFuelSummary(input);
-  const fuelValues = [fuel[0], fuel[1], fuel[2], fuel[3], fuel[4], fuel[5], fuel[6]];
-  const fuelLabels = ["trip", "cont. 5%", "alternate", "reserve", "extra", "taxi", "Block"];
   for (let i = 0; i < 7; i++) {
-    const row = 36 + i;
+    const row = 44 + i;
     merges.push(`I${row}:J${row}`, `K${row}:L${row}`);
-    set(cells, `I${row}`, fuelLabels[i], i === 6 ? 7 : 3);
-    set(cells, `K${row}`, fuelValues[i]?.text ?? "", i === 6 ? 7 : 3);
+    set(cells, `I${row}`, fuel[i]?.label ?? "", i === 6 ? 7 : 3);
+    set(cells, `K${row}`, fuel[i]?.text ?? "", i === 6 ? 7 : 3);
   }
 
   const navRows = [
-    [36, "NAV 1", ""], [37, "NAV 2", ""], [38, "COM 1", ""], [39, "COM 2", ""],
-    [40, "ATIS / INFO", ""], [41, "Standby", ""], [42, "Emergency", "121.500"],
+    [44, "NAV 1", ""],
+    [45, "NAV 2", ""],
+    [46, "COM 1", ""],
+    [47, "COM 2", ""],
+    [48, "ATIS / INFO", ""],
+    [49, "Standby", ""],
+    [50, "Emergency", "121.500"],
   ] as const;
   navRows.forEach(([row, label, value]) => {
     merges.push(`A${row}:D${row}`, `E${row}:H${row}`);
@@ -452,38 +530,62 @@ function buildCplSheet(input: NavlogExportInput) {
     set(cells, `E${row}`, value, 3);
   });
 
-  merges.push("A43:L43");
-  set(cells, "A43", "Fuel monitoring", 5);
-  const monitor = [
-    ["A44", "Time"], ["B44", "Fuel in tanks"], ["D44", "Fuel rmg."], ["F44", "Consumption G/h"],
-    ["H44", "Safe endurance"], ["J44", "ETA at limit of safe endurance"],
+  merges.push("A51:I51");
+  set(cells, "A51", "Fuel monitoring", 5);
+  const monitoringHeaders = [
+    ["A52", "Time"],
+    ["B52", "Fuel in tanks"],
+    ["C52", "Fuel rmg."],
+    ["D52", "Consumption G/h"],
+    ["F52", "Safe endurance"],
+    ["H52", "ETA at limit of safe endurance"],
   ] as const;
-  monitor.forEach(([ref, value]) => set(cells, ref, value, 2));
-  merges.push("B44:C44", "D44:E44", "F44:G44", "H44:I44", "J44:L44");
+  monitoringHeaders.forEach(([ref, value]) => set(cells, ref, value, 2));
+  merges.push(
+    "A52:A53", "B52:B53", "C52:C53",
+    "D52:E53", "F52:G53", "H52:I53",
+  );
+  for (let row = 54; row <= 58; row++) {
+    merges.push(`D${row}:E${row}`, `F${row}:G${row}`, `H${row}:I${row}`);
+  }
 
-  merges.push("A51:L51", "A52:L54");
-  set(cells, "A51", "Remarks:", 5);
+  merges.push("A59:I59", "A60:I61", "J51:L61");
+  set(cells, "A59", "Remarks:", 5);
 
   const rows: string[] = [];
-  for (let row = 1; row <= 54; row++) {
-    const height = row === 1 ? 28 : row === 4 ? 30 : 19;
+  for (let row = 1; row <= 61; row++) {
+    const height =
+      row === 1 ? 26 :
+      row === 4 || row === 5 ? 23 :
+      row === 43 || row === 51 || row === 59 ? 20 :
+      18;
     rows.push(
       rowXml(
         row,
         cells,
-        () => (row === 1 ? 1 : row === 4 || row === 44 ? 2 : row === 35 || row === 43 || row === 51 ? 5 : row >= 5 && row <= 34 && row % 2 === 0 ? 4 : 3),
+        () =>
+          row === 1 ? 1 :
+          row === 4 || row === 43 || row === 51 || row === 59 ? 5 :
+          3,
         height,
+        12,
       ),
     );
   }
-  return worksheetXml(rows, merges, 54);
+
+  return worksheetXml(
+    rows,
+    merges,
+    61,
+    [13, 8, 8, 9, 9, 9, 9, 10, 10, 10, 9, 9],
+  );
 }
 
 export function buildNavlogXlsxBytes(input: NavlogExportInput) {
   validateCapacity(input);
   const type = input.navlogType ?? "VFR";
   const sheetXml = type === "CPL" ? buildCplSheet(input) : buildVfrSheet(input);
-  return writeZip(commonPackageEntries(sheetXml, type === "CPL" ? "CPL NAVLOG" : "VFR NAVLOG"));
+  return writeZip(commonPackageEntries(sheetXml, type === "CPL" ? "NAVLOG 3" : "NAVLOG 1"));
 }
 
 export async function exportNavlogXlsx(input: NavlogExportInput) {

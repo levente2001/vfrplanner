@@ -350,9 +350,9 @@ assert.equal(adapted[0]!.ceilingFt, 3500);
 assert.equal(adapted[0]!.category, "VFR");
 assert.equal(adapted[0]!.tafSegments[0]!.type, "BASE");
 
-assert.equal(NAVLOG_WAYPOINT_LIMIT, 15);
-assert.equal(NAVLOG_LEG_LIMIT, 14);
-const exportWaypoints: WaypointMeta[] = Array.from({ length: 15 }, (_, index) => ({
+assert.equal(NAVLOG_WAYPOINT_LIMIT, 19);
+assert.equal(NAVLOG_LEG_LIMIT, 18);
+const exportWaypoints: WaypointMeta[] = Array.from({ length: 19 }, (_, index) => ({
   label: `WP${index + 1}`,
   lat: 47 + index * 0.01,
   lon: 19 + index * 0.01,
@@ -383,26 +383,26 @@ const exportBase = {
 const cplNavlogText = new TextDecoder().decode(
   buildNavlogXlsxBytes({ ...exportBase, navlogType: "CPL" }),
 );
-assert.match(cplNavlogText, /CPL NAVIGATION LOG/);
-assert.match(cplNavlogText, /WP15/);
+assert.match(cplNavlogText, /NAVIGATION LOG/);
+assert.match(cplNavlogText, /WP19/);
 assert.match(cplNavlogText, /Mag\. HDG/);
 assert.match(cplNavlogText, /121\.500/);
 const vfrNavlogText = new TextDecoder().decode(
   buildNavlogXlsxBytes({ ...exportBase, navlogType: "VFR" }),
 );
-assert.match(vfrNavlogText, /VFR NAVIGATION LOG/);
-assert.match(vfrNavlogText, /WP15/);
+assert.match(vfrNavlogText, /NAVIGATION LOG/);
+assert.match(vfrNavlogText, /WP19/);
 assert.throws(
   () =>
     buildNavlogXlsxBytes({
       ...exportBase,
       waypoints: [
         ...exportWaypoints,
-        { label: "WP16", lat: 47.16, lon: 19.16 },
+        { label: "WP20", lat: 47.20, lon: 19.20 },
       ],
       navlogType: "VFR",
     }),
-  /up to 15 waypoints and 14 legs/,
+  /up to 19 waypoints and 18 legs/,
 );
 
 console.log("vfrplanner formula tests passed");
