@@ -1,3 +1,4 @@
+import { inflateSync } from "node:zlib";
 import { requestFromEvent, responseToEvent } from "./_request";
 
 type Point = { lat: number; lon: number };
@@ -77,20 +78,182 @@ function samplesForLeg(a: Point, b: Point, corridorNm: number) {
   return points;
 }
 
-async function elevations(points: Point[]) {
-  const key = process.env.OPEN_METEO_API_KEY?.trim();
-  const base = key
-    ? "https://customer-api.open-meteo.com/v1/elevation"
-    : "https://api.open-meteo.com/v1/elevation";
+type DecodedPng = {
+  width: number;
+  height: number;
+  channels: 3 | 4;
+  pixels: Uint8Array;
+};
+
+const TERRAIN_ZOOM = 10;
+const terrainTileCache = new Map<string, Promise<DecodedPng>>();
+
+function paethPredictor(a: number, b: number, c: number) {
+  const p = a + b - c;
+  const pa = Math.abs(p - a);
+  const pb = Math.abs(p - b);
+  const pc = Math.abs(p - c);
+  if (pa <= pb && pa <= pc) return a;
+  if (pb <= pc) return b;
+  return c;
+}
+
+function decodePng(bytes: Uint8Array): DecodedPng {
+  const signature = [137, 80, 78, 71, 13, 10, 26, 10];
+  for (let i = 0; i < signature.length; i++) {
+    if (bytes[i] !== signature[i]) throw new Error("Terrain tile is not a valid PNG.");
+  }
+
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  let offset = 8;
+  let width = 0;
+  let height = 0;
+  let bitDepth = 0;
+  let colorType = -1;
+  let interlace = 0;
+  const idat: Uint8Array[] = [];
+
+  while (offset + 12 <= bytes.length) {
+    const length = view.getUint32(offset);
+    const type = String.fromCharCode(
+      bytes[offset + 4]!,
+      bytes[offset + 5]!,
+      bytes[offset + 6]!,
+      bytes[offset + 7]!,
+    );
+    const start = offset + 8;
+    const end = start + length;
+    if (end + 4 > bytes.length) throw new Error("Terrain PNG is truncated.");
+
+    if (type === "IHDR") {
+      width = view.getUint32(start);
+      height = view.getUint32(start + 4);
+      bitDepth = bytes[start + 8]!;
+      colorType = bytes[start + 9]!;
+      interlace = bytes[start + 12]!;
+    } else if (type === "IDAT") {
+      idat.push(bytes.slice(start, end));
+    } else if (type === "IEND") {
+      break;
+    }
+    offset = end + 4;
+  }
+
+  if (!width || !height || bitDepth !== 8 || (colorType !== 2 && colorType !== 6) || interlace !== 0) {
+    throw new Error("Unsupported terrain PNG format.");
+  }
+
+  const channels = colorType === 6 ? 4 : 3;
+  const compressedLength = idat.reduce((sum, part) => sum + part.length, 0);
+  const compressed = new Uint8Array(compressedLength);
+  let cursor = 0;
+  for (const part of idat) {
+    compressed.set(part, cursor);
+    cursor += part.length;
+  }
+
+  const raw = new Uint8Array(inflateSync(compressed));
+  const stride = width * channels;
+  const pixels = new Uint8Array(width * height * channels);
+  let rawOffset = 0;
+
+  for (let y = 0; y < height; y++) {
+    const filter = raw[rawOffset++]!;
+    const rowStart = y * stride;
+    for (let x = 0; x < stride; x++) {
+      const source = raw[rawOffset++]!;
+      const left = x >= channels ? pixels[rowStart + x - channels]! : 0;
+      const up = y > 0 ? pixels[rowStart - stride + x]! : 0;
+      const upLeft = y > 0 && x >= channels ? pixels[rowStart - stride + x - channels]! : 0;
+      let value = source;
+      if (filter === 1) value = (source + left) & 0xff;
+      else if (filter === 2) value = (source + up) & 0xff;
+      else if (filter === 3) value = (source + Math.floor((left + up) / 2)) & 0xff;
+      else if (filter === 4) value = (source + paethPredictor(left, up, upLeft)) & 0xff;
+      else if (filter !== 0) throw new Error(`Unsupported PNG filter ${filter}.`);
+      pixels[rowStart + x] = value;
+    }
+  }
+
+  return { width, height, channels, pixels };
+}
+
+function tileCoordinate(point: Point, zoom = TERRAIN_ZOOM) {
+  const n = 2 ** zoom;
+  const lat = Math.max(-85.05112878, Math.min(85.05112878, point.lat));
+  const x = ((point.lon + 180) / 360) * n;
+  const latRad = lat * Math.PI / 180;
+  const y = (1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2 * n;
+  return {
+    tileX: Math.floor(x),
+    tileY: Math.floor(y),
+    pixelX: Math.min(255, Math.max(0, Math.floor((x - Math.floor(x)) * 256))),
+    pixelY: Math.min(255, Math.max(0, Math.floor((y - Math.floor(y)) * 256))),
+  };
+}
+
+async function terrainTile(tileX: number, tileY: number, zoom = TERRAIN_ZOOM) {
+  const key = `${zoom}/${tileX}/${tileY}`;
+  let pending = terrainTileCache.get(key);
+  if (!pending) {
+    pending = (async () => {
+      const url = `https://elevation-tiles-prod.s3.amazonaws.com/terrarium/${zoom}/${tileX}/${tileY}.png`;
+      const response = await fetch(url, {
+        headers: { Accept: "image/png", "User-Agent": "vfrplanner/0.1 production" },
+        cache: "force-cache",
+      });
+      if (!response.ok) throw new Error(`Terrain tile HTTP ${response.status}`);
+      return decodePng(new Uint8Array(await response.arrayBuffer()));
+    })();
+    terrainTileCache.set(key, pending);
+  }
+  try {
+    return await pending;
+  } catch (error) {
+    terrainTileCache.delete(key);
+    throw error;
+  }
+}
+
+async function elevationsFromTerrainTiles(points: Point[]) {
+  const grouped = new Map<string, Array<{ index: number; pixelX: number; pixelY: number; tileX: number; tileY: number }>>();
+  points.forEach((point, index) => {
+    const t = tileCoordinate(point);
+    const key = `${t.tileX}/${t.tileY}`;
+    const list = grouped.get(key) ?? [];
+    list.push({ index, ...t });
+    grouped.set(key, list);
+  });
+
+  const values = new Array<number>(points.length);
+  await Promise.all(
+    [...grouped.values()].map(async (samples) => {
+      const first = samples[0]!;
+      const tile = await terrainTile(first.tileX, first.tileY);
+      for (const sample of samples) {
+        const offset = (sample.pixelY * tile.width + sample.pixelX) * tile.channels;
+        const r = tile.pixels[offset]!;
+        const g = tile.pixels[offset + 1]!;
+        const b = tile.pixels[offset + 2]!;
+        const elevationM = r * 256 + g + b / 256 - 32768;
+        values[sample.index] = elevationM;
+      }
+    }),
+  );
+  return values;
+}
+
+async function elevationsFromOpenMeteo(points: Point[], key: string) {
   const values: number[] = [];
   for (let i = 0; i < points.length; i += 100) {
     const chunk = points.slice(i, i + 100);
-    const url = new URL(base);
+    const url = new URL("https://customer-api.open-meteo.com/v1/elevation");
     url.searchParams.set("latitude", chunk.map((p) => p.lat.toFixed(6)).join(","));
     url.searchParams.set("longitude", chunk.map((p) => p.lon.toFixed(6)).join(","));
-    if (key) url.searchParams.set("apikey", key);
+    url.searchParams.set("apikey", key);
     const response = await fetch(url, {
       headers: { Accept: "application/json", "User-Agent": "vfrplanner/0.1 production" },
+      cache: "no-store",
     });
     if (!response.ok) throw new Error(`Elevation API HTTP ${response.status}`);
     const data = await response.json() as { elevation?: number[] };
@@ -100,6 +263,25 @@ async function elevations(points: Point[]) {
     values.push(...data.elevation);
   }
   return values;
+}
+
+async function elevations(points: Point[]) {
+  const key = process.env.OPEN_METEO_API_KEY?.trim();
+  if (key) {
+    try {
+      return {
+        values: await elevationsFromOpenMeteo(points, key),
+        source: "Open-Meteo customer Elevation API / Copernicus DEM GLO-90",
+      };
+    } catch (error) {
+      console.warn("Open-Meteo elevation failed; falling back to AWS Terrain Tiles.", error);
+    }
+  }
+
+  return {
+    values: await elevationsFromTerrainTiles(points),
+    source: "AWS Open Data Terrain Tiles / Mapzen Terrarium DEM",
+  };
 }
 
 export default async function handle(request: Request) {
@@ -114,10 +296,12 @@ export default async function handle(request: Request) {
       ? Math.min(10, Math.max(1, Number(body.corridorNm)))
       : 5;
     const legs = [];
+    let elevationSource = "";
     for (let i = 0; i < waypoints.length - 1; i++) {
       const points = samplesForLeg(waypoints[i]!, waypoints[i + 1]!, corridorNm);
-      const heights = await elevations(points);
-      const finiteHeights = heights.filter(Number.isFinite);
+      const elevationResult = await elevations(points);
+      elevationSource = elevationResult.source;
+      const finiteHeights = elevationResult.values.filter(Number.isFinite);
       if (!finiteHeights.length) throw new Error("No terrain elevations were returned.");
       const maxTerrainM = Math.max(...finiteHeights);
       const maxTerrainFt = maxTerrainM * FT_PER_M;
@@ -125,7 +309,7 @@ export default async function handle(request: Request) {
       legs.push({ legIndex: i, maxTerrainFt: Math.round(maxTerrainFt), msaFt, samples: points.length });
     }
     return json({
-      source: "Open-Meteo Elevation API / Copernicus DEM GLO-90",
+      source: elevationSource || "AWS Open Data Terrain Tiles / Mapzen Terrarium DEM",
       corridorNm,
       method: "Sampled terrain plus 1000 ft, rounded up to 100 ft",
       legs,
