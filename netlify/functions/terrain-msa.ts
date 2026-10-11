@@ -107,8 +107,8 @@ export default async function handle(request: Request) {
   try {
     const body = await request.json() as RequestBody;
     const waypoints = Array.isArray(body.waypoints) ? body.waypoints.filter(validPoint) : [];
-    if (waypoints.length < 2 || waypoints.length > 15) {
-      return json({ error: "Provide between 2 and 15 valid waypoints." }, 400);
+    if (waypoints.length < 2 || waypoints.length > 19) {
+      return json({ error: "Provide between 2 and 19 valid waypoints." }, 400);
     }
     const corridorNm = Number.isFinite(body.corridorNm)
       ? Math.min(10, Math.max(1, Number(body.corridorNm)))
