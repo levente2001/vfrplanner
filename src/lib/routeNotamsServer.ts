@@ -14,6 +14,15 @@ type RouteNotamRequest = {
   corridorNm?: number;
 };
 
+type CachedNotams = {
+  expiresAt: number;
+  items: ReturnType<typeof compactNotam>[];
+};
+
+const NOTAM_CACHE_TTL_MS = 5 * 60 * 1000;
+const notamCache = new Map<string, CachedNotams>();
+const inFlight = new Map<string, Promise<ReturnType<typeof compactNotam>[]>>();
+
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -57,6 +66,54 @@ function compactNotam(item: Record<string, unknown>) {
   };
 }
 
+async function fetchNotamsForIcao(icao: string, apiKey: string) {
+  const now = Date.now();
+  const cached = notamCache.get(icao);
+  if (cached && cached.expiresAt > now) {
+    return { items: cached.items, cache: "hit" as const };
+  }
+
+  const existing = inFlight.get(icao);
+  if (existing) {
+    return { items: await existing, cache: "shared" as const };
+  }
+
+  const request = (async () => {
+    const response = await fetch(
+      `https://data.skylinkapi.com/v3.1/notams/${icao}?include_future=true`,
+      {
+        headers: {
+          "x-api-key": apiKey,
+          Accept: "application/json",
+        },
+        cache: "no-store",
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error(`SkyLink NOTAM ${icao} HTTP ${response.status}`);
+    }
+
+    const data = (await response.json()) as Record<string, unknown>;
+    const items = Array.isArray(data.notams)
+      ? data.notams.filter(isRecord).map(compactNotam)
+      : [];
+
+    notamCache.set(icao, {
+      expiresAt: Date.now() + NOTAM_CACHE_TTL_MS,
+      items,
+    });
+    return items;
+  })();
+
+  inFlight.set(icao, request);
+  try {
+    return { items: await request, cache: "miss" as const };
+  } finally {
+    inFlight.delete(icao);
+  }
+}
+
 export async function handleRouteNotams(
   request: Request,
   options: RouteNotamServerOptions = {},
@@ -97,31 +154,16 @@ export async function handleRouteNotams(
       );
     }
 
-    const groups = await Promise.all(
-      icaos.map(async (icao) => {
-        const response = await fetch(
-          `https://data.skylinkapi.com/v3.1/notams/${icao}?include_future=true`,
-          {
-            headers: {
-              "x-api-key": apiKey,
-              Accept: "application/json",
-            },
-            cache: "no-store",
-          },
-        );
-
-        if (!response.ok) {
-          throw new Error(
-            `SkyLink NOTAM ${icao} HTTP ${response.status}`,
-          );
-        }
-
-        const data = (await response.json()) as Record<string, unknown>;
-        const items = Array.isArray(data.notams)
-          ? data.notams.filter(isRecord)
-          : [];
-        return items.map(compactNotam);
-      }),
+    const results = await Promise.all(
+      icaos.map((icao) => fetchNotamsForIcao(icao, apiKey)),
+    );
+    const groups = results.map((result) => result.items);
+    const cacheSummary = results.reduce(
+      (summary, result) => {
+        summary[result.cache] += 1;
+        return summary;
+      },
+      { hit: 0, shared: 0, miss: 0 },
     );
 
     const deduplicated = Array.from(
@@ -139,6 +181,10 @@ export async function handleRouteNotams(
       provider: "SkyLink API",
       coverage:
         "Automatic aerodrome/FIR notices returned for ICAO-coded route aerodromes. Verify complete en-route coverage against the official NOTAM briefing.",
+      cache: {
+        ttlSeconds: NOTAM_CACHE_TTL_MS / 1000,
+        ...cacheSummary,
+      },
       notams: deduplicated,
     });
   } catch (error) {
