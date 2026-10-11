@@ -504,14 +504,23 @@ export function PlannerPanel({
   ]);
 
   const addWaypoint = useCallback((wp: WaypointMeta) => {
-    setWaypoints((prev) => [
-      ...prev,
-      {
-        ...wp,
-        label: wp.label === "WP" ? nextMapWaypointLabel(prev) : wp.label,
-        source: "map",
-      },
-    ]);
+    setWaypoints((prev) => {
+      if (prev.length >= NAVLOG_WAYPOINT_LIMIT) {
+        setError(
+          `The planner supports up to ${NAVLOG_WAYPOINT_LIMIT} waypoints (${NAVLOG_LEG_LIMIT} legs).`,
+        );
+        return prev;
+      }
+      setError("");
+      return [
+        ...prev,
+        {
+          ...wp,
+          label: wp.label === "WP" ? nextMapWaypointLabel(prev) : wp.label,
+          source: "map",
+        },
+      ];
+    });
   }, []);
 
   const moveWaypoint = useCallback((index: number, pos: LatLng) => {
@@ -715,6 +724,11 @@ export function PlannerPanel({
       }
       if (combinedWaypoints.length < 2) {
         throw new Error("Enter at least two waypoints or add them on the map.");
+      }
+      if (combinedWaypoints.length > NAVLOG_WAYPOINT_LIMIT) {
+        throw new Error(
+          `The planner supports up to ${NAVLOG_WAYPOINT_LIMIT} waypoints (${NAVLOG_LEG_LIMIT} legs). Remove ${combinedWaypoints.length - NAVLOG_WAYPOINT_LIMIT} waypoint(s).`,
+        );
       }
       setWaypoints(combinedWaypoints);
       setFitKey((k) => k + 1);
