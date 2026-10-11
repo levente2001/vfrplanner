@@ -808,6 +808,7 @@ export function BriefingPanel({ plan, user }: Props) {
   const [notams, setNotams] = useState<NotamItem[]>([]);
   const [notamError, setNotamError] = useState("");
   const [notamLoading, setNotamLoading] = useState(false);
+  const [notamLoaded, setNotamLoaded] = useState(false);
   const [routeModel, setRouteModel] = useState<RouteModelWeather | null>(null);
   const [routeModelError, setRouteModelError] = useState("");
   const [activeTab, setActiveTab] = useState<"departure" | "route" | "approach">(
@@ -873,14 +874,29 @@ export function BriefingPanel({ plan, user }: Props) {
   }
 
   async function refreshNotams() {
-    if (!plan) return;
+    if (!plan || !departure || !destination) return;
+    const terminalWaypoints = [departure, destination].filter(
+      (waypoint, index, list) =>
+        isIcao(waypoint.label) &&
+        list.findIndex((item) => item.label.toUpperCase() === waypoint.label.toUpperCase()) === index,
+    );
+    if (!terminalWaypoints.length) {
+      setNotams([]);
+      setNotamLoaded(false);
+      setNotamError(
+        "Automatic NOTAM lookup needs an ICAO-coded departure or destination aerodrome.",
+      );
+      return;
+    }
     setNotamLoading(true);
     setNotamError("");
     try {
-      const items = await fetchRouteNotams(buildNotamRequest(plan.waypoints, 10));
+      const items = await fetchRouteNotams(buildNotamRequest(terminalWaypoints, 10));
       setNotams(items);
+      setNotamLoaded(true);
     } catch (error) {
       setNotams([]);
+      setNotamLoaded(false);
       setNotamError(
         error instanceof Error ? error.message : "Automatic NOTAM lookup failed.",
       );
@@ -902,9 +918,10 @@ export function BriefingPanel({ plan, user }: Props) {
   ]);
 
   useEffect(() => {
-    void refreshNotams();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [plan?.waypoints]);
+    setNotams([]);
+    setNotamError("");
+    setNotamLoaded(false);
+  }, [departureIcao, destinationIcao, departure?.lat, departure?.lon, destination?.lat, destination?.lon]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1145,7 +1162,7 @@ export function BriefingPanel({ plan, user }: Props) {
     return {
       ...form,
       notamStatus:
-        !plannedDeparture || notamError || notamLoading
+        !plannedDeparture || !notamLoaded || notamError || notamLoading
           ? "not-verified"
           : activeNotams.length
             ? "auto-partial-relevant"
@@ -1710,9 +1727,11 @@ export function BriefingPanel({ plan, user }: Props) {
                     ? "loading"
                     : notamError
                       ? "provider unavailable"
-                      : activeNotams.length
-                        ? activeNotams.length + " relevant in flight window"
-                        : "no aerodrome NOTAMs in flight window"
+                      : !notamLoaded
+                        ? "not loaded · manual refresh"
+                        : activeNotams.length
+                          ? activeNotams.length + " relevant in flight window"
+                          : "no aerodrome NOTAMs in flight window"
                 }
                 source="automatic"
               />
@@ -1744,6 +1763,9 @@ export function BriefingPanel({ plan, user }: Props) {
                   />
                   Refresh NOTAM
                 </Button>
+                <span className="self-center text-[11px] text-muted-foreground">
+                  Manual only · departure/destination · 5 min server cache
+                </span>
               </div>
             </CardContent>
           </Card>
