@@ -146,6 +146,7 @@ const AIRPORTS: Airport[] = buildAirportList([
   ["LOWW", "Vienna Intl", "480637N", "0163412E"],
   ["LZIB", "Bratislava", "481012N", "0171246E"],
   ["LDZA", "Zagreb", "454434N", "0160408E"],
+  ["LRSM", "Satu Mare", "474212N", "0225308E"],
   ["LROP", "Bucharest Otopeni", "443416N", "0260506E"],
 ]);
 
@@ -154,6 +155,9 @@ const NAVIGATION_WAYPOINTS = buildNavigationWaypointIndex(
 );
 
 const PLACES = buildPlaceIndex([
+  { label: "Apagy", lat: 47.95939, lon: 21.93485 },
+  { label: "Mátészalka", lat: 47.9539, lon: 22.3208 },
+  { label: "Tășnad", lat: 47.474, lon: 22.5829, aliases: ["Tasnád", "Tasnad"] },
   {
     label: "Budapest",
     lat: 47.4979,
@@ -361,7 +365,7 @@ export async function resolveWaypoints(input: string, airports: Airport[]) {
       throw new Error(`Unknown waypoint: ${token}`);
     }
 
-    const geocoded = await geocodeHungarianSettlement(token);
+    const geocoded = await geocodeSettlement(token);
     if (geocoded) {
       result.push(geocoded);
       continue;
@@ -396,7 +400,7 @@ function findNavigationWaypoint(value: string) {
 }
 
 function looksLikeNavigationIdentifier(value: string) {
-  return /^[A-Za-z0-9]{2,5}$/.test(value.trim());
+  return /^[A-Z0-9]{2,5}$/.test(value.trim());
 }
 
 function buildPlaceIndex(
@@ -421,22 +425,20 @@ function normalizeLookupKey(value: string) {
     .replace(/\s+/g, " ");
 }
 
-async function geocodeHungarianSettlement(
+async function geocodeSettlement(
   query: string,
 ): Promise<WaypointMeta | null> {
   if (typeof fetch !== "function") return null;
-  const key = normalizeLookupKey(query);
+  const key = `hu-ro.v2.${normalizeLookupKey(query)}`;
   const cached = readGeocodeCache(key);
   if (cached) return cached;
 
   const params = new URLSearchParams({
     format: "jsonv2",
-    q: `${query}, Hungary`,
-    countrycodes: "hu",
+    q: query,
+    countrycodes: "hu,ro",
     limit: "5",
     addressdetails: "1",
-    bounded: "1",
-    viewbox: "16.0,48.7,23.0,45.7",
   });
 
   try {
@@ -463,21 +465,14 @@ async function geocodeHungarianSettlement(
       "hamlet",
       "municipality",
     ]);
-    const first =
-      data.find((item) => {
-        const addressType = item.addresstype?.toLowerCase();
-        const type = item.type?.toLowerCase();
-        return (
-          (addressType ? settlementTypes.has(addressType) : false) ||
-          (type ? settlementTypes.has(type) : false) ||
-          Boolean(
-            item.address?.city ||
-            item.address?.town ||
-            item.address?.village ||
-            item.address?.municipality,
-          )
-        );
-      }) ?? data[0];
+    const matches = data.filter((item) => {
+      const isSettlement = settlementTypes.has(item.addresstype?.toLowerCase() ?? "") ||
+        settlementTypes.has(item.type?.toLowerCase() ?? "");
+      const names = [item.name, item.display_name?.split(",")[0]];
+      return isSettlement && names.some((name) => name && normalizeLookupKey(name) === normalizeLookupKey(query));
+    });
+    if (matches.length !== 1) return null;
+    const first = matches[0];
     if (!first?.lat || !first.lon) return null;
     const label =
       first.address?.city ||
