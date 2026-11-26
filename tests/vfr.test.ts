@@ -219,6 +219,15 @@ assert.equal(
   "Nyíradony",
 );
 assert.equal((await resolveWaypoints("Doboz", airports))[0]!.label, "Doboz");
+const crossBorderRoute = await resolveWaypoints(
+  "LHNY Apagy Mátészalka KARIL LRSM Tasnad NARKA HOPI LHDC JOZA PERIT Kalmanhaza LHNY",
+  airports,
+);
+assert.deepEqual(crossBorderRoute.map((wp) => wp.label), [
+  "LHNY", "Apagy", "Mátészalka", "KARIL", "LRSM", "Tășnad", "NARKA",
+  "HOPI", "LHDC", "JOZA", "PERIT", "Kálmánháza", "LHNY",
+]);
+assert.equal((await resolveWaypoints("APAGY", airports))[0]!.label, "Apagy");
 const hungarianNavWaypoints = await resolveWaypoints("JOZA PERIT", airports);
 assert.equal(hungarianNavWaypoints[0]!.label, "JOZA");
 assert.equal(hungarianNavWaypoints[1]!.label, "PERIT");
